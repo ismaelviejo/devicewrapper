@@ -35,7 +35,10 @@ export function registerNodeTools(server: McpServer, engine: Engine): void {
       title: "Add device",
       description: [
         "Add a device (phone, tablet, ...) to a scene. Real-world size in meters, centered at `position`, screen facing +Z (toward the default camera).",
-        `Models: ${engine.devices.ids().join(", ")}. Colors per model are in the devicewrapper://devices resource (or pass a hex color).`,
+        `Models and colors (or pass any hex color): ${engine.devices
+          .ids()
+          .map((id) => `${id} (${engine.devices.require(id).colors.map((c) => c.name).join(", ")})`)
+          .join("; ")}. Sizes: devicewrapper://devices.`,
         "`screen` accepts an asset ID, a workspace file path to a PNG/JPEG/WebP/SVG screenshot or an MP4/MOV/WebM screen recording (imported automatically), or a full screen object.",
         "Screen recordings play in sync with the timeline (loop and offset are set on screen.source: { type: 'video', asset, loop, offset }).",
         "Screenshots are fit with 'cover' anchored to the top by default, which suits app screens.",

@@ -75,7 +75,12 @@ export type Environment = z.infer<typeof Environment>;
 export const DepthOfField = z.object({
   enabled: z.boolean().default(false),
   focusDistance: z.number().positive().optional().describe("Meters from camera. Omit to focus on the camera target."),
-  aperture: z.number().min(0).max(1).default(0.02).describe("Blur strength, 0..1."),
+  aperture: z
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.3)
+    .describe("Blur strength 0..1: 0.2–0.4 subtle, 0.6–1 strong. Everything within ±3% of the focus distance stays sharp."),
 });
 
 export const Camera = z
@@ -88,7 +93,7 @@ export const Camera = z
     orthoHeight: z.number().positive().default(0.4).describe("Orthographic only. Visible height in meters."),
     near: z.number().positive().default(0.01),
     far: z.number().positive().default(100),
-    dof: DepthOfField.default({ enabled: false, aperture: 0.02 }),
+    dof: DepthOfField.default({ enabled: false, aperture: 0.3 }),
   })
   .describe("The single scene camera. Orientation comes from position + target + roll.");
 export type Camera = z.infer<typeof Camera>;
@@ -450,7 +455,7 @@ export const Scene = z
       orthoHeight: 0.4,
       near: 0.01,
       far: 100,
-      dof: { enabled: false, aperture: 0.02 },
+      dof: { enabled: false, aperture: 0.3 },
     }),
     lights: z.array(Light).default([]),
     nodes: z.array(Node).default([]),

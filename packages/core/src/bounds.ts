@@ -145,6 +145,8 @@ export interface FrameTargetsOptions {
   aspect: number;
   type: "perspective" | "orthographic";
   roll?: number;
+  /** Include the visible part of the targets' reflection in this floor (world Y, fade 0..1). */
+  reflection?: { floorY: number; fade: number };
 }
 
 export interface FrameResult {
@@ -175,6 +177,13 @@ function lookBasis(dirToCamera: Vec3, roll: number): { right: Vec3; up: Vec3; fo
  */
 export function frameTargets(scene: Scene, devices: DeviceRegistry, opts: FrameTargetsOptions): FrameResult {
   const pts = worldPoints(scene, opts.targets, devices);
+  if (opts.reflection && pts.length) {
+    // The reflection stays visible for roughly the lower (1.25 - fade) / 2 of each object's height.
+    const { floorY, fade } = opts.reflection;
+    const keep = Math.max(0, Math.min(1, (1.25 - fade) / 2));
+    const mirrored = pts.filter((p) => p[1] > floorY).map((p): Vec3 => [p[0], floorY - (p[1] - floorY) * keep, p[2]]);
+    pts.push(...mirrored);
+  }
   const box = boundsOf(pts);
   if (!box) {
     throw new DwError("NOTHING_TO_FRAME", `None of [${opts.targets.join(", ")}] have visible geometry to frame.`, {
@@ -203,24 +212,46 @@ export function frameTargets(scene: Scene, devices: DeviceRegistry, opts: FrameT
 
   const tanV = Math.tan((opts.fov * DEG) / 2);
   const tanH = tanV * opts.aspect;
-  const fits = (dist: number) => {
-    const cam = v3.add(center, v3.scale(dir, dist));
+  const fitDistance = (c: Vec3) => {
+    const fits = (dist: number) => {
+      const cam = v3.add(c, v3.scale(dir, dist));
+      for (const p of pts) {
+        const d = v3.sub(p, cam);
+        const z = v3.dot(d, forward);
+        if (z <= 1e-4) return false;
+        if (Math.abs(v3.dot(d, right)) * pad > z * tanH) return false;
+        if (Math.abs(v3.dot(d, up)) * pad > z * tanV) return false;
+      }
+      return true;
+    };
+    let lo = 1e-3, hi = 1e4;
+    for (let i = 0; i < 80; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) hi = mid;
+      else lo = mid;
+    }
+    return hi;
+  };
+  // Fit, then re-center on the *projected* extents: with perspective, near parts look bigger, so the
+  // 3D box center sits off-center in the picture (e.g. a tablet in front of a laptop). A few rounds converge.
+  let c = center;
+  let dist = fitDistance(c);
+  for (let round = 0; round < 4; round++) {
+    const cam = v3.add(c, v3.scale(dir, dist));
+    let minX = Infinity, maxX2 = -Infinity, minY = Infinity, maxY2 = -Infinity;
     for (const p of pts) {
       const d = v3.sub(p, cam);
-      const z = v3.dot(d, forward);
-      if (z <= 1e-4) return false;
-      if (Math.abs(v3.dot(d, right)) * pad > z * tanH) return false;
-      if (Math.abs(v3.dot(d, up)) * pad > z * tanV) return false;
+      const z = Math.max(1e-4, v3.dot(d, forward));
+      const x = v3.dot(d, right) / z, y = v3.dot(d, up) / z;
+      minX = Math.min(minX, x); maxX2 = Math.max(maxX2, x);
+      minY = Math.min(minY, y); maxY2 = Math.max(maxY2, y);
     }
-    return true;
-  };
-  let lo = 1e-3, hi = 1e4;
-  for (let i = 0; i < 80; i++) {
-    const mid = (lo + hi) / 2;
-    if (fits(mid)) hi = mid;
-    else lo = mid;
+    const offX = ((minX + maxX2) / 2) * dist, offY = ((minY + maxY2) / 2) * dist;
+    if (Math.abs(offX) + Math.abs(offY) < 1e-6 * dist) break;
+    c = v3.add(c, v3.add(v3.scale(right, offX), v3.scale(up, offY)));
+    dist = fitDistance(c);
   }
-  return { position: v3.add(center, v3.scale(dir, hi)), target: center, orthoHeight: scene.camera.orthoHeight };
+  return { position: v3.add(c, v3.scale(dir, dist)), target: c, orthoHeight: scene.camera.orthoHeight };
 }
 
 /** Focal length (mm, 35mm full-frame equivalent) to vertical FOV in degrees. */

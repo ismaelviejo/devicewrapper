@@ -124,7 +124,7 @@ export class JobManager {
         const job = JSON.parse(readFileSync(join(dir, f), "utf8")) as RenderJob;
         if (job.status === "queued" || job.status === "running") {
           job.status = "failed";
-          job.error = { code: "INTERRUPTED", message: "The render was interrupted because the server stopped before it finished.", hint: "Start it again with render." };
+          job.error = { code: "INTERRUPTED", message: "The render was interrupted because the server stopped before it finished.", hint: "Start it again with render, and keep the MCP server running until the job completes (jobs live in the server process)." };
           job.finishedAt = nowIso();
           this.persist(job);
         }

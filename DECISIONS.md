@@ -116,6 +116,18 @@ Choices made while building, with the reason for each. Where the implementation 
 
 **Floor specs share one schema.** `FloorSpecSchema` (none, shadow, solid, reflective) is exported from core and used by styles and `apply_style`, so the MCP tool can't drift from the data files.
 
+## Phase 7: hardening and docs
+
+**Tool docs are generated from the live server** (`pnpm docs` → `docs/tools.md`, `docs/resources.md`), so they can't drift from the Zod schemas and descriptions.
+
+**Tool-description eval with real agents.** Two agents that read only the generated docs completed eight design briefs through the tools; their reports drove a round of fixes (see [docs/eval.md](docs/eval.md)). The biggest were real rendering bugs the golden tests couldn't catch because the references were produced by the same code: DOF bleeding the background over the in-focus subject, and a white sweep across black display glass on light styles.
+
+**Framing re-centers on the picture, not the 3D box.** With perspective, a device near the camera looks bigger, so centering the bounding box left compositions lopsided. `frameTargets` now re-centers on the projected extents (converges in a few rounds, deterministic). This changed several golden references on purpose.
+
+**`target: 'all'` for motions** groups the top-level devices under an `arrangement` group (created once, positions and existing position tracks converted to group space) so a fan or row can turn as one.
+
+**npm publishing is ready but not done:** there are no npm credentials in this environment. The packages build with correct `files`/`exports`; see the README for publishing and for using the server from other projects without publishing.
+
 ### Known limitations after Phase 6
 
 - Reflections show only the 3D scene, not the background, and there is no real roughness-based blur that grows with distance (blur is uniform).

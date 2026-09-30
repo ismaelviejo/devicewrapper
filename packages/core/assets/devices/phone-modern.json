@@ -27,7 +27,7 @@
     { "name": "black", "body": "#3a3a3c", "finish": "metal" },
     { "name": "silver", "body": "#dcdcde", "finish": "metal" },
     { "name": "natural", "body": "#b7b0a4", "finish": "metal" },
-    { "name": "blue", "body": "#2f3c50", "finish": "metal" },
+    { "name": "blue", "body": "#3f5a80", "finish": "metal" },
     { "name": "white", "body": "#f1f1ef", "finish": "matte" },
     { "name": "midnight", "body": "#1d2029", "finish": "glossy" }
   ]

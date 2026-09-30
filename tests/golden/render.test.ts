@@ -116,7 +116,7 @@ describe("golden renders", () => {
     s = setVariables(s, { locale: "es", variables: { headline: "Entrena mejor" } });
     s = setBackground(s, { type: "gradient", angle: 180, stops: [{ color: "#1b1d24", offset: 0 }, { color: "#07080b", offset: 1 }] });
     s = setEffects(s, { upsert: [{ type: "vignette", strength: 0.4 }] });
-    s = setCamera(s, { focalLength: 55, frame: { shot: "hero", padding: 0.35 } }, engine.devices);
+    s = setCamera(s, { focalLength: 55, frame: { shot: "hero", padding: 0.35, shift: [0, 0.1] } }, engine.devices);
     compareGolden("dark-trio-en", await render(s));
     compareGolden("dark-trio-es", await render(s, 320, 180, { locale: "es" }));
   });
@@ -223,7 +223,7 @@ describe("post effects", () => {
   it("depth of field blurs devices behind the focus plane, bloom glows on dark scenes", async () => {
     const { composeScene, setEffects } = await import("@devicewrapper/core");
     await writeScreenshot(join(root, "screens/red.png"), 590, 1278, "#ff5a5f");
-    const dof = await composeScene(engine.ws, engine.devices, { devices: [{ screen: "screens/home.png" }, { screen: "screens/red.png" }, { screen: "screens/home.png" }], layout: "stack", camera: { focalLength: 85, dof: 0.08 } }, "dof");
+    const dof = await composeScene(engine.ws, engine.devices, { devices: [{ screen: "screens/home.png" }, { screen: "screens/red.png" }, { screen: "screens/home.png" }], layout: "stack", camera: { focalLength: 85, dof: 0.6 } }, "dof");
     const flat = { ...dof, camera: { ...dof.camera, dof: { ...dof.camera.dof, enabled: false } } };
     const small = (s: typeof dof) => ({ ...s, canvas: { ...s.canvas, width: 320, height: 180 } });
     const withDof = await render(small(dof));

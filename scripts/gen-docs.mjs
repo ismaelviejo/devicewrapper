@@ -1,0 +1,90 @@
+// Generates docs/tools.md and docs/resources.md from the live MCP server, so they can't drift.
+// Usage: pnpm build && pnpm docs
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { loadConfig } from "@devicewrapper/core";
+import { Engine } from "@devicewrapper/jobs";
+import { createMcpServer } from "@devicewrapper/mcp";
+
+const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
+const root = realpathSync(mkdtempSync(join(tmpdir(), "dw-docs-")));
+const engine = new Engine({ config: loadConfig({ DEVICEWRAPPER_WORKSPACE: root }, root), backend: null });
+const server = createMcpServer(engine);
+const [a, b] = InMemoryTransport.createLinkedPair();
+const client = new Client({ name: "docs", version: "0" });
+await Promise.all([server.connect(a), client.connect(b)]);
+
+const typeOf = (s) => {
+  if (!s) return "any";
+  if (s.enum) {
+    const vals = s.enum.map((v) => JSON.stringify(v));
+    return vals.length > 12 ? `${vals.slice(0, 4).join(" | ")} | … (${vals.length} values)` : vals.join(" | ");
+  }
+  if (s.const !== undefined) return JSON.stringify(s.const);
+  if (s.anyOf || s.oneOf) return [...new Set((s.anyOf ?? s.oneOf).map(typeOf))].join(" | ");
+  const tuple = s.prefixItems ?? (Array.isArray(s.items) ? s.items : null);
+  if (tuple) return `[${tuple.map(typeOf).join(", ")}]`;
+  if (s.type === "object" && s.properties) {
+    const req = new Set(s.required ?? []);
+    const keys = Object.keys(s.properties).map((k) => (req.has(k) ? k : `${k}?`));
+    return `{ ${keys.join(", ")} }`;
+  }
+  if (s.type === "array") {
+    const inner = typeOf(s.items);
+    return inner.includes(" | ") ? `(${inner})[]` : `${inner}[]`;
+  }
+  if (Array.isArray(s.type)) return s.type.join(" | ");
+  return s.type ?? "object";
+};
+const cell = (t) => String(t ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+
+const { tools } = await client.listTools();
+const groups = [
+  ["Compose (start here)", ["compose_scene", "list_templates", "apply_layout", "apply_style", "apply_motion"]],
+  ["Scenes", ["create_scene", "get_scene", "list_scenes", "update_scene", "duplicate_scene", "delete_scene", "validate_scene", "import_scene", "export_scene"]],
+  ["Nodes and assets", ["add_device", "add_node", "update_node", "remove_node", "import_asset"]],
+  ["Look", ["set_camera", "set_lights", "set_background", "set_effects", "set_variables"]],
+  ["Animation", ["set_track", "remove_track"]],
+  ["Rendering", ["render_preview", "render", "get_render_job", "list_render_jobs", "cancel_render_job"]],
+];
+const seen = new Set(groups.flatMap(([, n]) => n));
+const rest = tools.map((t) => t.name).filter((n) => !seen.has(n));
+if (rest.length) groups.push(["Other", rest]);
+
+let md = `# MCP tools\n\n_Generated from the live server by \`pnpm docs\` — do not edit by hand._\n\n${tools.length} tools. Every tool returns JSON text; errors come back with \`isError: true\` and \`{ error: { code, message, path?, hint? } }\`.\n\n`;
+for (const [title, names] of groups) md += `- **${title}:** ${names.map((n) => `[\`${n}\`](#${n})`).join(", ")}\n`;
+for (const [title, names] of groups) {
+  md += `\n## ${title}\n`;
+  for (const name of names) {
+    const t = tools.find((x) => x.name === name);
+    if (!t) continue;
+    md += `\n### ${t.name}\n\n`;
+    const hints = Object.entries(t.annotations ?? {}).filter(([k, v]) => k.endsWith("Hint") && v).map(([k]) => k.replace(/Hint$/, ""));
+    if (hints.length) md += `_${hints.join(", ")}_\n\n`;
+    md += `${t.description}\n\n`;
+    const props = Object.entries(t.inputSchema.properties ?? {});
+    if (props.length) {
+      const req = new Set(t.inputSchema.required ?? []);
+      md += `| Parameter | Type | Required | Default | Description |\n|---|---|---|---|---|\n`;
+      for (const [k, s] of props) {
+        md += `| \`${k}\` | ${cell(typeOf(s))} | ${req.has(k) ? "yes" : ""} | ${s.default !== undefined ? `\`${cell(JSON.stringify(s.default))}\`` : ""} | ${cell(s.description)} |\n`;
+      }
+    } else md += `No parameters.\n`;
+  }
+}
+writeFileSync(join(repo, "docs/tools.md"), md);
+
+const { resources } = await client.listResources();
+let rmd = `# MCP resources\n\n_Generated from the live server by \`pnpm docs\`._\n\n| URI | Name | Description |\n|---|---|---|\n`;
+for (const r of resources) rmd += `| \`${r.uri}\` | ${cell(r.name)} | ${cell(r.description)} |\n`;
+const guide = await client.readResource({ uri: "devicewrapper://guide" });
+rmd += `\n## The guide (\`devicewrapper://guide\`)\n\nAgents read this first. Reproduced here:\n\n${guide.contents[0].text.replace(/^#/gm, "###")}\n`;
+writeFileSync(join(repo, "docs/resources.md"), rmd);
+
+await client.close();
+rmSync(root, { recursive: true, force: true });
+console.log(`docs/tools.md: ${tools.length} tools; docs/resources.md: ${resources.length} resources`);

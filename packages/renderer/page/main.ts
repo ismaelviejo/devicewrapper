@@ -430,8 +430,11 @@ async function addScreen(parent: THREE.Object3D, n: PageDevice, face: { w: numbe
   const glassGeo = cachedGeometry(["glass", face.w, face.h, face.r], () => roundedRectFlat(face.w, face.h, face.r, 48));
   const glass = new THREE.Mesh(
     glassGeo,
-    new THREE.MeshPhysicalMaterial({ color: color(def.bezelColor), roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.03, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }),
+    // Black glass: kept only faintly reflective. As a near-mirror it reflected the bright studio
+    // environment as a white-to-black sweep across the whole bezel on light styles.
+    new THREE.MeshPhysicalMaterial({ color: color(def.bezelColor), roughness: 0.18, metalness: 0, clearcoat: 0.4, clearcoatRoughness: 0.12, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }),
   );
+  (glass.material as THREE.Material).userData.envScale = 0.15;
   glass.position.set(0, face.centerY, faceZ + 0.00004);
   parent.add(glass);
 
@@ -452,9 +455,12 @@ async function addScreen(parent: THREE.Object3D, n: PageDevice, face: { w: numbe
     const geo = cachedGeometry(["cutout", c], () =>
       c.type === "punch" ? new THREE.CircleGeometry(c.width / 2, 48) : roundedRectFlat(c.width, c.height, c.type === "island" ? c.height / 2 : c.height * 0.45, 24),
     );
-    const cut = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0x010101, roughness: 0.1, clearcoat: 1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -12 }));
+    const cut = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0x010101, roughness: 0.35, clearcoat: 0.3, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -20 }));
     const top = face.centerY + s.offset[1] + s.height / 2;
-    cut.position.set(s.offset[0], top - c.offsetY - c.height / 2, faceZ + 0.00012);
+    // Above the glare layer, so the island stays black instead of picking up the screen reflection.
+    cut.position.set(s.offset[0], top - c.offsetY - c.height / 2, faceZ + 0.0002);
+    cut.renderOrder = 3;
+    (cut.material as THREE.Material).userData.envScale = 0.1;
     parent.add(cut);
   }
 
@@ -472,8 +478,10 @@ async function addScreen(parent: THREE.Object3D, n: PageDevice, face: { w: numbe
     polygonOffsetUnits: -16,
   });
   glareMaterial.userData.isGlare = true;
-  const glare = new THREE.Mesh(glassGeo, glareMaterial);
-  glare.position.set(0, face.centerY, faceZ + 0.00016);
+  // Glare covers the display only: over the black bezel the additive reflection showed up as a
+  // bright white-to-black sweep on light styles.
+  const glare = new THREE.Mesh(screen.geometry, glareMaterial);
+  glare.position.set(s.offset[0], face.centerY + s.offset[1], faceZ + 0.00016);
   glare.renderOrder = 2;
   parent.add(glare);
   return { screenMaterial, glareMaterial };
@@ -880,6 +888,18 @@ async function load(payload: LoadPayload): Promise<void> {
     (parent ?? scene).add(obj);
   }
 
+  // Three ignores material.envMapIntensity for scene.environment, so materials that need weaker
+  // reflections (black display glass, the camera island) get the map directly with their own scale.
+  scene.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+    const k = m?.userData?.envScale as number | undefined;
+    if (!m || k === undefined) return;
+    m.envMap = env;
+    m.envMapIntensity = k * payload.environment.intensity;
+    m.envMapRotation.set(0, payload.environment.rotation * DEG, 0);
+    m.needsUpdate = true;
+  });
+
   const lights = new Map<string, { light: THREE.Light; spec: Light; target?: THREE.Object3D }>();
   for (const spec of payload.lights) {
     const { light, target } = makeLight(spec);
@@ -1221,7 +1241,9 @@ uniform vec2 resolution; uniform float focus; uniform float aperture; uniform fl
 uniform float near; uniform float far; uniform bool ortho; uniform bool dofOn; uniform bool bloomOn; uniform float bloomStrength;
 varying vec2 vUv;
 float linearZ(float d) { return ortho ? near + d * (far - near) : (near * far) / (far - d * (far - near)); }
-float coc(float z) { return min(maxCoc, aperture * abs(z - focus) / max(z, 1e-4) * resolution.y * 2.0); }
+// Blur radius in pixels. Everything within ±3% of the focus distance stays sharp (so a turned device
+// in focus is sharp edge to edge), then blur grows with relative distance from that band.
+float coc(float z) { return min(maxCoc, aperture * max(abs(z - focus) - 0.03 * focus, 0.0) / max(z, 1e-4) * resolution.y * 0.5); }
 void main() {
   vec4 c = texture2D(tColor, vUv);
   if (dofOn) {
@@ -1237,9 +1259,8 @@ void main() {
       vec2 uv = vUv + dir * dist / resolution;
       float zs = linearZ(texture2D(tDepth, uv).x);
       float cs = coc(zs);
-      // A sample contributes if its own blur reaches this pixel (out-of-focus foreground spreading over
-      // the background), or if this pixel is itself blurred that far and the sample is not in front of it.
-      float w = (cs >= dist ? 1.0 : 0.0);
+      // A sample behind this pixel never spreads onto it (keeps in-focus edges crisp against a blurred background).
+      float w = (cs >= dist && zs <= zc + 0.002) ? 1.0 : 0.0;
       if (w == 0.0 && cc >= dist && zs >= zc - 0.002) w = 1.0;
       acc += texture2D(tColor, uv) * w;
       wsum += w;

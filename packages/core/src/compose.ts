@@ -81,9 +81,9 @@ export const ComposeBrief = z
       .object({
         shot: z.enum(CAMERA_SHOTS as [string, ...string[]]).optional(),
         focalLength: z.number().positive().optional(),
-        padding: z.number().min(-0.9).max(5).optional(),
-        shift: z.tuple([z.number(), z.number()]).optional().describe("Move the subject in frame: [x, y] fractions; +y moves it down."),
-        dof: z.number().min(0).max(1).optional().describe("Depth of field strength (aperture, e.g. 0.03–0.1), focused on the camera target."),
+        padding: z.number().min(-0.9).max(5).optional().describe("Extra room around the devices (0.15 ≈ 7% margin per side; 1 = they fill half the frame). Default depends on the layout."),
+        shift: z.tuple([z.number(), z.number()]).optional().describe("Move the subject in frame: [x, y] fractions of the frame; +y moves it down. Text already shifts it automatically."),
+        dof: z.number().min(0).max(1).optional().describe("Depth of field strength (aperture 0..1; 0.2–0.4 subtle, 0.6–1 strong), focused on the camera target."),
       })
       .optional(),
     text: z
@@ -204,9 +204,11 @@ export async function composeScene(ws: Workspace, devices: DeviceRegistry, input
     const pos = TEXT_POSITIONS[t.position];
     const index = seenAt.get(t.position) ?? 0;
     seenAt.set(t.position, index + 1);
-    const role = t.role ?? (index === 0 ? (t.position.startsWith("bottom") ? "caption" : "headline") : "subtitle");
+    const role = t.role ?? (index === 0 ? (t.position.startsWith("bottom") ? "subtitle" : "headline") : "subtitle");
     const size = t.size ?? Math.round(shortSide * ROLE[role].size);
-    const lines = t.content.split("\n").length;
+    // Estimate wrapped lines (average glyph ≈ 0.55 em; text wraps at 86% of the canvas width).
+    const perLine = Math.max(1, Math.floor((0.86 * s.canvas.width) / (size * 0.55)));
+    const lines = t.content.split("\n").reduce((acc, l) => acc + Math.max(1, Math.ceil(l.length / perLine)), 0);
     const blockH = (size * 1.15 * lines) / s.canvas.height;
     const gap = (size * 0.45) / s.canvas.height;
     const offset = stackOffset.get(t.position) ?? 0;
@@ -214,7 +216,8 @@ export async function composeScene(ws: Workspace, devices: DeviceRegistry, input
     // First block centers on the anchor; following blocks start below (or above) the previous one.
     const anchorY = pos.anchor[1] + up * (offset === 0 ? 0 : offset + blockH / 2);
     stackOffset.set(t.position, (offset === 0 ? blockH / 2 : offset + blockH) + gap);
-    const isSub = role !== "headline";
+    // Secondary lines are slightly transparent; the first text at a position stays fully opaque.
+    const isSub = role !== "headline" && index > 0;
     s = addNode(
       s,
       {
@@ -240,10 +243,20 @@ export async function composeScene(ws: Workspace, devices: DeviceRegistry, input
   const bottomCount = texts.filter((t) => t.position.startsWith("bottom")).length;
   const hasTop = topCount > 0;
   const hasBottom = bottomCount > 0;
-  const portrait = s.canvas.height > s.canvas.width;
-  const room = (n: number) => (n === 0 ? 0 : (portrait ? 0.07 : 0.1) + (n - 1) * 0.03);
-  const shift: [number, number] = brief.camera?.shift ?? [0, room(topCount) - room(bottomCount)];
-  const padding = brief.camera?.padding ?? cam.padding + (hasTop ? 0.2 + (topCount - 1) * 0.08 : 0) + (hasBottom ? 0.2 + (bottomCount - 1) * 0.08 : 0);
+  // Fraction of the frame height each text block needs, measured from the actual text sizes.
+  // Fraction of the frame height the text occupies from the top / bottom edge, from the laid-out blocks.
+  let roomTop = 0, roomBottom = 0;
+  for (const [pos, off] of stackOffset) {
+    const a = TEXT_POSITIONS[pos].anchor[1];
+    if (pos.startsWith("top")) roomTop = Math.max(roomTop, a + off + 0.02);
+    else if (pos.startsWith("bottom")) roomBottom = Math.max(roomBottom, 1 - a + off + 0.02);
+  }
+  // Shrink the subject to fit in what's left (keeping the layout's own margin), then shift it so the
+  // free space sits under/over the text: padding p means content spans 1/(1+p) of the frame.
+  const base = 1 / (1 + cam.padding);
+  const avail = Math.max(0.3, base - roomTop - roomBottom);
+  const shift: [number, number] = brief.camera?.shift ?? [0, (roomTop - roomBottom) / 2];
+  const padding = brief.camera?.padding ?? (hasTop || hasBottom ? 1 / avail - 1 : cam.padding);
   s = setCamera(
     s,
     {

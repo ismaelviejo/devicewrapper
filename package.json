@@ -14,7 +14,8 @@
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
     "test:unit": "vitest run --project unit",
     "test:golden:update": "UPDATE_GOLDEN=1 vitest run --project golden",
-    "setup": "node packages/cli/dist/index.js setup"
+    "setup": "node packages/cli/dist/index.js setup",
+    "docs": "node scripts/gen-docs.mjs"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",

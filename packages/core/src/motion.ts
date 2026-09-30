@@ -1,5 +1,5 @@
 import type { Scene, Vec3 } from "@devicewrapper/schema";
-import { deviceSize } from "./bounds.js";
+import { boundsOf, deviceSize, worldPoints } from "./bounds.js";
 import type { DeviceRegistry } from "./devices.js";
 import { DwError } from "./errors.js";
 import { allocateId } from "./ids.js";
@@ -95,6 +95,35 @@ function wrap(scene: Scene, nodeId: string, devices: DeviceRegistry): { scene: S
   const idx = rest.findIndex((n) => n.id === nodeId);
   rest.splice(idx, 0, g);
   return { scene: { ...s, nodes: rest }, group };
+}
+
+/** Group that target 'all' puts the top-level devices in, so an arrangement moves as one unit. */
+export const ARRANGEMENT = "arrangement";
+
+/** Puts every top-level device (and device group) in one group centered under them; reuses it if present. */
+function groupAll(scene: Scene, devices: DeviceRegistry): { scene: Scene; group: string } {
+  if (scene.nodes.some((n) => n.id === ARRANGEMENT && n.kind === "group")) return { scene, group: ARRANGEMENT };
+  const hasDevice = (id: string): boolean => scene.nodes.some((n) => n.kind !== "text2d" && n.parent === id && (n.kind === "device" || hasDevice(n.id)));
+  const members = scene.nodes.filter((n) => n.kind !== "text2d" && !n.parent && (n.kind === "device" || (n.kind === "group" && hasDevice(n.id))));
+  if (members.length === 0) throw new DwError("NOTHING_TO_ANIMATE", "There are no devices to animate.");
+  const ids = scene.nodes.filter((n) => n.kind === "device").map((n) => n.id);
+  const box = boundsOf(worldPoints(scene, ids, devices))!;
+  const c: Vec3 = [(box.min[0] + box.max[0]) / 2, 0, (box.min[2] + box.max[2]) / 2].map((v) => Math.round(v * 1e6) / 1e6) as Vec3;
+  let s = addNode(scene, { id: ARRANGEMENT, kind: "group", transform: { position: c } }, devices).scene;
+  for (const m of members) {
+    if (m.kind === "text2d") continue;
+    const p = m.transform.position;
+    s = updateNode(s, m.id, { parent: ARRANGEMENT, transform: { position: [p[0] - c[0], p[1] - c[1], p[2] - c[2]].map((v) => Math.round(v * 1e6) / 1e6) } }, devices);
+  }
+  // Existing position tracks were absolute; they are now relative to the group.
+  const memberIds = new Set(members.map((m) => m.id));
+  const tracks = s.animation.tracks.map((t) =>
+    memberIds.has(t.target) && t.property === "position"
+      ? { ...t, keyframes: t.keyframes.map((k) => ({ ...k, value: (k.value as number[]).map((v, i) => Math.round((v - c[i]!) * 1e6) / 1e6) })) }
+      : t,
+  );
+  s = { ...s, animation: { ...s.animation, tracks: tracks as typeof s.animation.tracks } };
+  return { scene: s, group: ARRANGEMENT };
 }
 
 function nodeKeyframes(scene: Scene, preset: string, targetId: string, start: number, duration: number, amount: number | undefined, easing: string | undefined, devices: DeviceRegistry, useIdentity: boolean, sizeOf: string = targetId): Array<{ property: string; keyframes: Kf[]; interpolation?: "linear" | "spline" }> {
@@ -290,8 +319,12 @@ export function applyMotion(scene: Scene, opts: MotionOptions, devices: DeviceRe
   } else {
     let targets: string[];
     if (opts.target === "camera") throw new DwError("INVALID_MOTION_TARGET", `'${opts.preset}' animates devices, not the camera.`);
-    if (opts.target) {
-      if (!s.nodes.some((n) => n.id === opts.target)) throw new DwError("UNKNOWN_NODE", `No node '${opts.target}'.`);
+    if (opts.target === "all") {
+      const g = groupAll(s, devices);
+      s = g.scene;
+      targets = [g.group];
+    } else if (opts.target) {
+      if (!s.nodes.some((n) => n.id === opts.target)) throw new DwError("UNKNOWN_NODE", `No node '${opts.target}'.`, { hint: "Use a node ID, 'all' (every device as one unit), 'texts', or omit target." });
       targets = [opts.target];
     } else {
       // Top-level devices, and top-level groups that contain devices (e.g. the carousel ring).

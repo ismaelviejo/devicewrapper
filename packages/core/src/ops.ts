@@ -283,6 +283,16 @@ export interface SetCameraOptions {
   frame?: { targets?: string[]; shot?: CameraShot; direction?: Vec3; padding?: number; shift?: [number, number] };
 }
 
+/** A top-level plane with a reflective material, if the scene has one (used to frame the reflection too). */
+function reflectiveFloor(scene: Scene): { floorY: number; fade: number } | undefined {
+  for (const n of scene.nodes) {
+    if (n.kind !== "plane" || n.parent) continue;
+    const m = typeof n.material === "string" ? scene.materials[n.material] : n.material;
+    if (m?.type === "reflective" && m.strength > 0) return { floorY: n.transform.position[1], fade: m.fade };
+  }
+  return undefined;
+}
+
 export function setCamera(scene: Scene, opts: SetCameraOptions, devices: DeviceRegistry): Scene {
   const s = clone(scene);
   let cam = s.camera;
@@ -303,7 +313,9 @@ export function setCamera(scene: Scene, opts: SetCameraOptions, devices: DeviceR
       if (targets.length === 0) targets = s.nodes.filter((n) => n.kind === "primitive" || n.kind === "group").map((n) => n.id);
     }
     for (const t of targets) nodeIndex(s, t);
+    const reflection = reflectiveFloor(s);
     const r = frameTargets({ ...s, camera: cam }, devices, {
+      ...(reflection ? { reflection } : {}),
       targets,
       direction: opts.frame.direction ?? preset.direction,
       padding: opts.frame.padding ?? preset.padding,

@@ -9,6 +9,7 @@ import {
   applyLayout,
   applyMotion,
   applyStyle,
+  setCamera,
   boundsOf,
   composeScene,
   createScene,
@@ -121,6 +122,32 @@ describe("styles", () => {
     const s = parseScene({ id: "r", nodes: [{ id: "box", kind: "primitive", shape: "box", material: { type: "reflective" } }] });
     const codes = validateScene(s, { devices }).warnings.map((w) => w.code);
     expect(codes).toContain("NOT_RENDERED");
+  });
+});
+
+describe("motions: whole arrangement", () => {
+  it("target 'all' groups the devices once and keeps their world positions", () => {
+    const base = applyLayout(withDevices(["phone-modern", "phone-modern", "phone-modern"]), { layout: "fan" }, devices);
+    const before = boundsOf(worldPoints(base, ["phone", "phone-2", "phone-3"], devices))!;
+    const r = applyMotion(base, { preset: "turntable", target: "all" }, devices);
+    expect(r.animated.map((a) => a.target)).toEqual(["arrangement"]);
+    const after = boundsOf(worldPoints(r.scene, ["phone", "phone-2", "phone-3"], devices))!;
+    for (let i = 0; i < 3; i++) expect(after.min[i]).toBeCloseTo(before.min[i]!, 5);
+    const again = applyMotion(r.scene, { preset: "float", target: "all" }, devices);
+    // The group is reused; float animates its position, which doesn't clash with the turntable rotation.
+    expect(again.scene.nodes.filter((n) => n.kind === "group")).toHaveLength(1);
+    expect(validateScene(again.scene, { devices }).valid).toBe(true);
+  });
+});
+
+describe("framing", () => {
+  it("includes the reflection when the floor is reflective", () => {
+    const s = applyLayout(withDevices(["phone-modern"]), { layout: "hero" }, devices);
+    const shadow = setCamera(applyStyle(s, { style: "light-studio" }, devices), { frame: { shot: "front" } }, devices);
+    const glossy = setCamera(applyStyle(s, { style: "glossy-light" }, devices), { frame: { shot: "front" } }, devices);
+    // The camera aims lower and stands further back to fit the mirror image.
+    expect(glossy.camera.target[1]).toBeLessThan(shadow.camera.target[1]);
+    expect(glossy.camera.position[2]).toBeGreaterThan(shadow.camera.position[2]);
   });
 });
 

@@ -75,7 +75,8 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
         "Size defaults to the scene canvas; pass preset ('1080p', '4k', …) or width/height (aspect is kept if you pass only one).",
         "locales: ['en', 'es', 'fr'] renders one output per language (one job each).",
         "Returns job IDs immediately. `wait` (max 50 s) blocks until the jobs finish or the time runs out; stills usually finish in a few seconds.",
-        "Videos take longer (roughly 0.3–1.5 s per frame on CPU rendering): poll get_render_job with wait: 45 until completed. Draft with supersample: 1 and a small width first.",
+        "Videos take longer: CPU rendering costs roughly 0.5–2 s per frame (more at 4K, with supersample 2+, depth of field or bloom). Poll get_render_job with wait: 45 until completed. Draft with supersample: 1 and a small width first.",
+        "Jobs run inside this server process: keep the server running until they complete (a server restart marks running jobs INTERRUPTED).",
         "Otherwise poll get_render_job. Output paths are relative to the workspace. Default path: .devicewrapper/output/<sceneId>/<sceneId>[-<locale>].<ext>.",
         "Example: { sceneId: 'hero', format: 'png', preset: '4k', wait: 45 }",
       ].join("\n"),
@@ -87,7 +88,7 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
         height: z.number().int().min(16).optional(),
         time: z.number().min(0).optional().describe("Stills: timeline time in seconds."),
         start: z.number().min(0).optional().describe("Video: start time, seconds."),
-        end: z.number().min(0).optional().describe("Video: end time, seconds. Default: canvas.duration."),
+        end: z.number().min(0).optional().describe("Video: end time in seconds, exclusive (start 0, end 1 at 30 fps = 30 frames). Default: canvas.duration."),
         locale: z.string().optional(),
         locales: z.array(z.string()).optional().describe("Render once per locale."),
         transparent: z.boolean().optional(),
@@ -127,7 +128,9 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
       if (a.wait > 0) {
         const deadline = Date.now() + a.wait * 1000;
         final = [];
-        for (const j of jobs) final.push(await engine.jobs.wait(j.jobId, Math.max(0, deadline - Date.now())));
+        for (const j of jobs) await engine.jobs.wait(j.jobId, Math.max(0, deadline - Date.now()));
+        // Re-read every job at the end: an earlier job may have finished while we waited on a later one.
+        final = jobs.map((j) => engine.jobs.get(j.jobId));
       }
       const unfinished = final.filter((j) => j.status === "queued" || j.status === "running").length;
       return ok({

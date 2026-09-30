@@ -47,7 +47,7 @@ export function patchOf<T extends z.ZodObject>(obj: T, omit: string[] = []): z.Z
 }
 
 export const SceneId = Id.describe("Scene ID (see list_scenes).");
-export const NodeId = Id.describe("Node ID (see list_nodes).");
+export const NodeId = Id.describe("Node ID (get_scene lists them).");
 
 export const CanvasPatch = patchOf(Canvas);
 export const CameraPatch = patchOf(Camera);

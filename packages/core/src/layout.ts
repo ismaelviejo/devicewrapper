@@ -50,7 +50,7 @@ const r3 = (v: number) => Math.round(v * 1e6) / 1e6;
 const vec = (x: number, y: number, z: number): Vec3 => [r3(x), r3(y), r3(z)];
 
 function items(scene: Scene, devices: DeviceRegistry, targets?: string[]): Item[] {
-  const ids = targets && targets.length ? targets : scene.nodes.filter((n) => n.kind === "device" && (!n.parent || n.parent === CAROUSEL)).map((n) => n.id);
+  const ids = targets && targets.length ? targets : scene.nodes.filter((n) => n.kind === "device" && (!n.parent || n.parent === CAROUSEL || n.parent === "arrangement")).map((n) => n.id);
   if (ids.length === 0) throw new DwError("NOTHING_TO_LAYOUT", "There are no devices to arrange.", { hint: "Add devices with add_device first." });
   return ids.map((id) => {
     const n = scene.nodes.find((x) => x.id === id);
@@ -182,7 +182,10 @@ export function applyLayout(scene: Scene, opts: LayoutOptions, devices: DeviceRe
       rest.forEach((i, k) => {
         const side = k % 2 === 0 ? 1 : -1;
         const row = Math.floor(k / 2);
-        const x = side * (main.width / 2 - i.width * 0.15 + row * i.width * 0.9);
+        // Mostly beside the main device: a big side device (a tablet next to a laptop) placed
+        // further in would hide the main screen.
+        const overlap = i.width > main.width * 0.4 ? -0.45 : 0.15;
+        const x = side * (main.width / 2 - i.width * overlap + row * i.width * 0.9);
         const z = main.depth / 2 + i.depth + 0.02 + row * 0.01;
         s = place(s, devices, i.id, vec(x, standY(i), z), [tilt, -side * angle, 0]);
       });

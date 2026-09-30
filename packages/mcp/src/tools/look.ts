@@ -24,9 +24,12 @@ export function registerLookTools(server: McpServer, engine: Engine): void {
       title: "Set camera",
       description: [
         "Position and aim the scene camera. Two ways, combinable:",
-        "1) Auto-frame (recommended): frame: { shot, targets?, padding? } computes position/target so the targets fill the frame.",
+        "1) Auto-frame (recommended): frame: { shot, targets?, padding?, shift? } computes position/target so the targets fill the frame.",
         `   Shots: ${CAMERA_SHOTS.map((s) => `${s} (${SHOT_PRESETS[s]!.description})`).join("; ")}.`,
-        "   targets defaults to every device. padding is the margin as a fraction of the frame (0.15 = 15%; negative crops in).",
+        "   targets defaults to every device (plus the visible part of their reflection on a reflective floor).",
+        "   padding enlarges the subject's extent before fitting: 0.15 ≈ 7% margin per side (shot default), 0.5 ≈ 17%, 1 = subject fills half the frame; negative crops in.",
+        "   shift [x, y] then moves the subject within the frame by fractions of the frame: [0, 0.15] moves it down 15% (room for a headline on top), [0, -0.15] up (room for a caption).",
+        "   Framing ignores text; leave room for text with shift and padding.",
         "2) Manual: position, target (look-at point), fov (vertical degrees) or focalLength (mm, 35mm-equivalent), roll.",
         "Lens choice changes perspective: 50–85 mm is flattering for products; 24–35 mm is dramatic. When both are given, fov/focalLength apply first, then framing.",
         "Example: { sceneId: 'hero', focalLength: 70, frame: { shot: 'hero', padding: 0.2 } }",
@@ -45,13 +48,14 @@ export function registerLookTools(server: McpServer, engine: Engine): void {
         dof: z
           .object({ enabled: z.boolean().optional(), focusDistance: z.number().positive().nullable().optional(), aperture: z.number().min(0).max(1).optional() })
           .optional()
-          .describe("Depth of field (rendered): blurs what is nearer or farther than the focus. focusDistance null = focus on the camera target (meters otherwise); aperture 0..1 = blur strength (0.2–0.4 is natural). Image backgrounds blur too."),
+          .describe("Depth of field (rendered): blurs what is nearer or farther than the focus. focusDistance null = focus on the camera target (meters otherwise); aperture 0..1 = blur strength (0.2–0.4 subtle, 0.6–1 strong); everything within ±3% of the focus distance stays sharp. Image backgrounds blur too."),
         frame: z
           .object({
             shot: z.enum(CAMERA_SHOTS as [string, ...string[]]).default("hero"),
             targets: z.array(Id).optional().describe("Node IDs to frame. Default: all devices."),
             direction: Vec3.optional().describe("Custom direction from subject to camera; overrides the shot's direction."),
-            padding: z.number().min(-0.9).max(5).optional(),
+            padding: z.number().min(-0.9).max(5).optional().describe("Extra room around the subject (0.15 ≈ 7% margin per side; 1 = subject fills half the frame)."),
+            shift: z.tuple([z.number().min(-1).max(1), z.number().min(-1).max(1)]).optional().describe("[x, y] fractions of the frame; +y moves the subject down, +x right."),
           })
           .optional(),
       },
@@ -76,6 +80,7 @@ export function registerLookTools(server: McpServer, engine: Engine): void {
                     ...(a.frame.targets ? { targets: a.frame.targets } : {}),
                     ...(a.frame.direction ? { direction: a.frame.direction } : {}),
                     ...(a.frame.padding !== undefined ? { padding: a.frame.padding } : {}),
+                    ...(a.frame.shift ? { shift: a.frame.shift as [number, number] } : {}),
                   },
                 }
               : {}),

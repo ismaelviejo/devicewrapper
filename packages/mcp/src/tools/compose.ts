@@ -40,6 +40,10 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
         "Deterministic: the same brief always builds the same scene. Saved as a new scene; returns a summary.",
         "Brief fields: devices (required, 1–12: { model, color?, screen?: path or asset ID, lidAngle? }), layout, layoutOptions, style, camera { shot, focalLength, padding, shift },",
         "text [{ content, position: top|bottom|center|top-left|…, size?, weight?, color? }], variables, locales, motion (preset name, object, or list), duration, preset (canvas size), render.",
+        "Text: size is in canvas pixels (scaled with the output size; default ~7% of the short side for a top headline, ~4% for a bottom line); weight 100–900. The camera leaves room for text automatically.",
+        "Localization: text content may use {{variables}}; variables: { headline: 'Train smarter' }, locales: { es: { headline: 'Entrena mejor' } }; then render { locales: ['en', 'es'] }.",
+        "motion: preset names as in apply_motion (e.g. 'float', 'slow-turn', 'push-in'), or objects { preset, target?, start?, duration?, amount? }; target 'all' moves the whole arrangement as one unit.",
+        "duration sets the timeline length; whole-timeline motions stretch to it, entrances (rise, lid-open, …) keep their natural length.",
         `Styles: ${STYLE_NAMES.join(", ")}. Layouts: ${LAYOUT_NAMES.join(", ")} (default picked from the devices).`,
         "Templates (see list_templates) are ready-made briefs: pass template + screens, plus any brief fields to override.",
         "Example: { name: 'Fitness launch', preset: '1080p', style: 'dark-studio', devices: [{ model: 'phone-modern', screen: 'screens/workout.png' }], motion: ['slow-turn', 'push-in'], duration: 5 }",
@@ -90,6 +94,9 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
       engine.store.save(scene);
       const report = engine.validate(scene);
       const issues = [...report.errors, ...report.warnings].map((i) => `${i.severity}: ${i.message}`);
+      for (const n of scene.nodes) {
+        if (n.kind === "device" && n.screen.source.type === "color") issues.push(`note: '${n.id}' has no screen content (shows a plain screen); set one with update_node { id: '${n.id}', screen: 'path/to/screenshot.png' }.`);
+      }
       return ok({ sceneId: id, scene: summarizeScene(scene), ...(issues.length ? { issues } : {}) });
     }),
   );
@@ -180,6 +187,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
         "Add a named animation relative to the current pose. Device motions target all top-level devices by default (entrances are staggered), or `target`.",
         "Text: target a text node ID or 'texts' (all text) with fade-in, fade-out, rise, drop-in, enter-left/right, exit-left/right.",
         `Presets: ${list(MOTIONS)}.`,
+        "target 'all': every device moves as one unit (they are grouped under 'arrangement'); use it to turn or orbit a fan/arc/row as a whole, since without it turntable/slow-turn spin each device on its own axis.",
         "Timing: start/duration in seconds (defaults: whole timeline; entrances ~1.2 s at the start; exits at the end). amount scales the motion.",
         "Motions layer: if the property is already animated (e.g. float then rise), the device is wrapped in a group and the group is animated (stack: 'auto'; use 'replace' to overwrite).",
         "The timeline is extended if a motion ends after it. Example: { sceneId: 'hero', preset: 'orbit', amount: 40 }",
