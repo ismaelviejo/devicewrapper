@@ -1,0 +1,27 @@
+{
+  "name": "devicewrapper-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --workspace-concurrency=1 build",
+    "typecheck": "tsc -b packages/cli",
+    "test": "vitest run",
+    "test:golden": "vitest run --project golden",
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@types/node": "^22.20.4",
+    "@types/pngjs": "^6.0.5",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "sharp": "^0.35.5",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.2",
+    "zod": "^4.6.5"
+  }
+}

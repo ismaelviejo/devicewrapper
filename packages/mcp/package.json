@@ -1,0 +1,14 @@
+{
+  "name": "@devicewrapper/mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing the devicewrapper engine",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": {"@devicewrapper/core": "workspace:*", "@devicewrapper/jobs": "workspace:*", "@devicewrapper/schema": "workspace:*", "@modelcontextprotocol/sdk": "^1.31.0", "zod": "^4.6.5"},
+  "devDependencies": {}
+}

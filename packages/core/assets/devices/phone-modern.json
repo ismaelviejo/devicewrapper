@@ -1,0 +1,34 @@
+{
+  "id": "phone-modern",
+  "name": "Modern phone",
+  "category": "smartphone",
+  "form": "slab",
+  "description": "Generic flagship phone: flat sides, thin even bezels, pill-shaped camera cutout, triple-lens camera bump. 71.6 x 147.6 x 7.8 mm.",
+  "body": { "width": 0.0716, "height": 0.1476, "depth": 0.0078, "cornerRadius": 0.0115, "edgeRadius": 0.0009 },
+  "screen": { "width": 0.0656, "height": 0.1416, "cornerRadius": 0.0092, "offset": [0, 0], "pixels": [1179, 2556] },
+  "bezelColor": "#050505",
+  "cutout": { "type": "island", "width": 0.0205, "height": 0.0062, "offsetY": 0.0033 },
+  "cameraBump": {
+    "width": 0.0305, "height": 0.0305, "depth": 0.0014, "cornerRadius": 0.0072,
+    "position": [-0.0178, 0.0548],
+    "lenses": [
+      { "position": [-0.0066, 0.0066], "diameter": 0.0118 },
+      { "position": [-0.0066, -0.0066], "diameter": 0.0118 },
+      { "position": [0.0068, 0.0000], "diameter": 0.0118 }
+    ]
+  },
+  "buttons": [
+    { "side": "left", "offsetY": 0.029, "length": 0.0072, "protrusion": 0.0006, "thickness": 0.0034 },
+    { "side": "left", "offsetY": 0.044, "length": 0.0105, "protrusion": 0.0006, "thickness": 0.0034 },
+    { "side": "left", "offsetY": 0.058, "length": 0.0105, "protrusion": 0.0006, "thickness": 0.0034 },
+    { "side": "right", "offsetY": 0.050, "length": 0.0170, "protrusion": 0.0006, "thickness": 0.0034 }
+  ],
+  "colors": [
+    { "name": "black", "body": "#3a3a3c", "finish": "metal" },
+    { "name": "silver", "body": "#dcdcde", "finish": "metal" },
+    { "name": "natural", "body": "#b7b0a4", "finish": "metal" },
+    { "name": "blue", "body": "#2f3c50", "finish": "metal" },
+    { "name": "white", "body": "#f1f1ef", "finish": "matte" },
+    { "name": "midnight", "body": "#1d2029", "finish": "glossy" }
+  ]
+}

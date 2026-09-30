@@ -1,0 +1,277 @@
+{
+  "studio": {
+    "description": "Neutral three-point studio light. Good default for any background.",
+    "environment": {
+      "preset": "studio",
+      "intensity": 1,
+      "rotation": 0
+    },
+    "lights": [
+      {
+        "id": "key",
+        "type": "directional",
+        "position": [
+          2,
+          4,
+          3
+        ],
+        "intensity": 2.2,
+        "shadow": {
+          "softness": 6
+        }
+      },
+      {
+        "id": "fill",
+        "type": "directional",
+        "position": [
+          -3,
+          1.5,
+          2
+        ],
+        "intensity": 0.6,
+        "castShadow": false
+      },
+      {
+        "id": "rim",
+        "type": "directional",
+        "position": [
+          0,
+          3,
+          -4
+        ],
+        "intensity": 1.2,
+        "castShadow": false
+      },
+      {
+        "id": "ambient",
+        "type": "ambient",
+        "intensity": 0.15
+      }
+    ]
+  },
+  "soft-studio": {
+    "description": "Very soft, low-contrast light with gentle shadows. Clean, friendly look.",
+    "environment": {
+      "preset": "soft",
+      "intensity": 1.2,
+      "rotation": 0
+    },
+    "lights": [
+      {
+        "id": "key",
+        "type": "directional",
+        "position": [
+          1.5,
+          4,
+          3
+        ],
+        "intensity": 1.4,
+        "shadow": {
+          "softness": 12
+        }
+      },
+      {
+        "id": "fill",
+        "type": "hemisphere",
+        "color": "#ffffff",
+        "groundColor": "#d8d8dc",
+        "intensity": 0.6
+      }
+    ]
+  },
+  "dramatic": {
+    "description": "Hard side light with a cool rim and deep shadows. Use with dark backgrounds.",
+    "environment": {
+      "preset": "studio",
+      "intensity": 0.25,
+      "rotation": 0
+    },
+    "lights": [
+      {
+        "id": "key",
+        "type": "spot",
+        "position": [
+          -2,
+          3,
+          2
+        ],
+        "intensity": 45,
+        "angle": 25,
+        "penumbra": 0.6,
+        "shadow": {
+          "softness": 3
+        }
+      },
+      {
+        "id": "rim",
+        "type": "directional",
+        "position": [
+          2,
+          2,
+          -3
+        ],
+        "intensity": 2.5,
+        "color": "#cfe0ff",
+        "castShadow": false
+      },
+      {
+        "id": "ambient",
+        "type": "ambient",
+        "intensity": 0.03
+      }
+    ]
+  },
+  "dark": {
+    "description": "Low-key light for dark studio shots, with a subtle blue rim.",
+    "environment": {
+      "preset": "studio",
+      "intensity": 0.35,
+      "rotation": 0
+    },
+    "lights": [
+      {
+        "id": "key",
+        "type": "directional",
+        "position": [
+          2,
+          3,
+          2
+        ],
+        "intensity": 1.2,
+        "shadow": {
+          "softness": 8
+        }
+      },
+      {
+        "id": "rim",
+        "type": "directional",
+        "position": [
+          -2,
+          2,
+          -3
+        ],
+        "intensity": 1.8,
+        "color": "#9fb4ff",
+        "castShadow": false
+      },
+      {
+        "id": "ambient",
+        "type": "ambient",
+        "intensity": 0.05
+      }
+    ]
+  },
+  "bright": {
+    "description": "High-key, airy light for white or pastel backgrounds.",
+    "environment": {
+      "preset": "soft",
+      "intensity": 1.5,
+      "rotation": 0
+    },
+    "lights": [
+      {
+        "id": "key",
+        "type": "directional",
+        "position": [
+          2,
+          5,
+          4
+        ],
+        "intensity": 1.8,
+        "shadow": {
+          "softness": 10
+        }
+      },
+      {
+        "id": "fill",
+        "type": "hemisphere",
+        "color": "#ffffff",
+        "groundColor": "#e8e8e8",
+        "intensity": 1
+      }
+    ]
+  },
+  "sunset": {
+    "description": "Warm low sun from the left with a purple fill.",
+    "environment": {
+      "preset": "studio",
+      "intensity": 0.7,
+      "rotation": 0
+    },
+    "lights": [
+      {
+        "id": "key",
+        "type": "directional",
+        "position": [
+          -4,
+          1.5,
+          2
+        ],
+        "intensity": 2.5,
+        "color": "#ffb070",
+        "shadow": {
+          "softness": 6
+        }
+      },
+      {
+        "id": "fill",
+        "type": "hemisphere",
+        "color": "#ffd7b0",
+        "groundColor": "#3a2a4a",
+        "intensity": 0.5
+      }
+    ]
+  },
+  "product": {
+    "description": "Crisp commercial product light: bright key, soft fill, strong back rim for edge highlights.",
+    "environment": {
+      "preset": "studio",
+      "intensity": 1.1,
+      "rotation": 0
+    },
+    "lights": [
+      {
+        "id": "key",
+        "type": "directional",
+        "position": [
+          2.5,
+          4,
+          3
+        ],
+        "intensity": 2,
+        "shadow": {
+          "softness": 6
+        }
+      },
+      {
+        "id": "fill",
+        "type": "directional",
+        "position": [
+          -3,
+          1.5,
+          2
+        ],
+        "intensity": 0.8,
+        "castShadow": false
+      },
+      {
+        "id": "rim",
+        "type": "spot",
+        "position": [
+          0,
+          2,
+          -3
+        ],
+        "intensity": 20,
+        "angle": 35,
+        "penumbra": 0.8,
+        "castShadow": false
+      },
+      {
+        "id": "ambient",
+        "type": "ambient",
+        "intensity": 0.1
+      }
+    ]
+  }
+}

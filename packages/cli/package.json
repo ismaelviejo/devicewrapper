@@ -1,0 +1,24 @@
+{
+  "name": "devicewrapper",
+  "version": "0.1.0",
+  "description": "Headless 3D device mockups for AI agents, controlled through MCP",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@devicewrapper/core": "workspace:*",
+    "@devicewrapper/jobs": "workspace:*",
+    "@devicewrapper/mcp": "workspace:*",
+    "@devicewrapper/schema": "workspace:*",
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {},
+  "bin": {
+    "devicewrapper": "./dist/index.js"
+  }
+}

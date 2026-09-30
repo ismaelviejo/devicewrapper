@@ -1,0 +1,30 @@
+{
+  "id": "phone-classic",
+  "name": "Classic phone",
+  "category": "smartphone",
+  "form": "slab",
+  "description": "Generic Android-style phone: rounded sides, punch-hole camera, vertical camera strip. 70 x 151 x 8.4 mm.",
+  "body": { "width": 0.0700, "height": 0.1510, "depth": 0.0084, "cornerRadius": 0.0095, "edgeRadius": 0.0034 },
+  "screen": { "width": 0.0660, "height": 0.1470, "cornerRadius": 0.0078, "offset": [0, 0], "pixels": [1080, 2400] },
+  "bezelColor": "#050505",
+  "cutout": { "type": "punch", "width": 0.0034, "height": 0.0034, "offsetY": 0.0028 },
+  "cameraBump": {
+    "width": 0.0140, "height": 0.0380, "depth": 0.0012, "cornerRadius": 0.0070,
+    "position": [-0.0215, 0.0520],
+    "lenses": [
+      { "position": [0, 0.0115], "diameter": 0.0100 },
+      { "position": [0, 0.0000], "diameter": 0.0100 },
+      { "position": [0, -0.0115], "diameter": 0.0100 }
+    ]
+  },
+  "buttons": [
+    { "side": "right", "offsetY": 0.040, "length": 0.0200, "protrusion": 0.0005, "thickness": 0.0028 },
+    { "side": "right", "offsetY": 0.066, "length": 0.0110, "protrusion": 0.0005, "thickness": 0.0028 }
+  ],
+  "colors": [
+    { "name": "graphite", "body": "#2c2d30", "finish": "glossy" },
+    { "name": "mint", "body": "#bfe3d0", "finish": "matte" },
+    { "name": "lavender", "body": "#cbc3e3", "finish": "matte" },
+    { "name": "cream", "body": "#f0e9dc", "finish": "matte" }
+  ]
+}

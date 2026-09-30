@@ -1,0 +1,24 @@
+{
+  "id": "tablet",
+  "name": "Tablet",
+  "category": "tablet",
+  "form": "slab",
+  "description": "Generic 11-inch tablet in portrait: flat sides, even bezels, single-lens camera. 178.5 x 247.6 x 6.1 mm.",
+  "body": { "width": 0.1785, "height": 0.2476, "depth": 0.0061, "cornerRadius": 0.0180, "edgeRadius": 0.0008 },
+  "screen": { "width": 0.1625, "height": 0.2316, "cornerRadius": 0.0100, "offset": [0, 0], "pixels": [1668, 2388] },
+  "bezelColor": "#050505",
+  "cameraBump": {
+    "width": 0.0120, "height": 0.0120, "depth": 0.0010, "cornerRadius": 0.0060,
+    "position": [-0.0730, 0.1080],
+    "lenses": [ { "position": [0, 0], "diameter": 0.0085 } ]
+  },
+  "buttons": [
+    { "side": "right", "offsetY": 0.030, "length": 0.0120, "protrusion": 0.0005, "thickness": 0.0028 },
+    { "side": "right", "offsetY": 0.045, "length": 0.0120, "protrusion": 0.0005, "thickness": 0.0028 }
+  ],
+  "colors": [
+    { "name": "space-gray", "body": "#5a5c60", "finish": "metal" },
+    { "name": "silver", "body": "#dedfe1", "finish": "metal" },
+    { "name": "blue", "body": "#9fb4c8", "finish": "metal" }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@devicewrapper/jobs",
+  "version": "0.1.0",
+  "description": "Engine facade and render job queue for devicewrapper",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@devicewrapper/core": "workspace:*",
+    "@devicewrapper/schema": "workspace:*",
+    "p-queue": "^9.3.3"
+  },
+  "devDependencies": {}
+}

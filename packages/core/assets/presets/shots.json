@@ -1,0 +1,83 @@
+{
+  "front": {
+    "direction": [
+      0,
+      0,
+      1
+    ],
+    "padding": 0.15,
+    "description": "Straight on."
+  },
+  "hero": {
+    "direction": [
+      0.22,
+      0.12,
+      1
+    ],
+    "padding": 0.18,
+    "description": "Slightly right and above: the default product shot."
+  },
+  "closeup": {
+    "direction": [
+      0.18,
+      0.1,
+      1
+    ],
+    "padding": -0.25,
+    "description": "Tight crop; the subject overflows the frame edges."
+  },
+  "wide": {
+    "direction": [
+      0.2,
+      0.15,
+      1
+    ],
+    "padding": 0.8,
+    "description": "Lots of breathing room."
+  },
+  "three-quarter": {
+    "direction": [
+      0.75,
+      0.25,
+      0.8
+    ],
+    "padding": 0.2,
+    "description": "Strong 45 degree angle showing depth."
+  },
+  "low-angle": {
+    "direction": [
+      0.15,
+      -0.35,
+      1
+    ],
+    "padding": 0.2,
+    "description": "From below, heroic."
+  },
+  "high-angle": {
+    "direction": [
+      0.15,
+      0.6,
+      1
+    ],
+    "padding": 0.2,
+    "description": "From above."
+  },
+  "top-down": {
+    "direction": [
+      0,
+      1,
+      0.02
+    ],
+    "padding": 0.15,
+    "description": "Flat lay from directly above (lay devices on their back)."
+  },
+  "side": {
+    "direction": [
+      1,
+      0.05,
+      0.02
+    ],
+    "padding": 0.2,
+    "description": "Profile view."
+  }
+}
