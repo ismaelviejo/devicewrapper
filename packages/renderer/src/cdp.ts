@@ -108,6 +108,9 @@ export class ChromeProcess {
         "--no-sandbox",
         "--disable-dev-shm-usage",
         "--disable-extensions",
+        // A crashed renderer should die at once; crash reporting can leave it hanging instead.
+        "--disable-breakpad",
+        "--disable-crash-reporter",
         "--disable-background-networking",
         "--disable-component-update",
         "--disable-sync",

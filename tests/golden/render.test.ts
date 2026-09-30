@@ -47,7 +47,8 @@ beforeAll(async () => {
   await writeScreenshot(join(root, "screens/home.png"), 590, 1278, "#4f7cff");
   await writeScreenshot(join(root, "screens/red.png"), 590, 1278, "#ff5a5f");
   const config = loadConfig({ DEVICEWRAPPER_WORKSPACE: root, DEVICEWRAPPER_RENDER_MODE: "deterministic" }, root);
-  backend = new ThreeChromiumRenderer({ config, poolSize: 1 });
+  // A short hang timeout: on some runners a forced page crash shows up as a hang, not a crash event.
+  backend = new ThreeChromiumRenderer({ config, poolSize: 1, frameTimeoutMs: 45_000 });
   engine = new Engine({ config, backend });
 });
 

@@ -94,6 +94,8 @@ export interface ChromiumRendererOptions {
   /** Pages rendering in parallel. Default: config.maxConcurrentRenders. */
   poolSize?: number;
   debug?: boolean;
+  /** How long one frame may take before the page is considered hung and replaced. Default 180 s. */
+  frameTimeoutMs?: number;
 }
 
 /**
@@ -474,7 +476,7 @@ export class ThreeChromiumRenderer implements RenderBackend {
   }
 
   private async pageRender(slot: Slot, frame: FrameState, opts: RenderFrameOptions): Promise<string> {
-    return this.withDeadline(slot, `frame at t=${frame.time.toFixed(3)}s`, 180_000, () => slot.page.call<string>("render", [frame, opts]));
+    return this.withDeadline(slot, `frame at t=${frame.time.toFixed(3)}s`, this.opts.frameTimeoutMs ?? 180_000, () => slot.page.call<string>("render", [frame, opts]));
   }
 
   private async recover(slot: Slot, e: unknown): Promise<never> {
