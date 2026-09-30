@@ -25,6 +25,8 @@ jobs:
       - name: Generated docs are up to date
         run: pnpm run docs:gen && git diff --exit-code -- docs/
       - run: pnpm test:golden
+        env:
+          DW_CDP_TRACE: "1"
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
