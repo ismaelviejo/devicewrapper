@@ -1,17 +1,26 @@
 # devicewrapper
 
-Headless 3D device mockups for AI agents. An MCP server that lets Claude Code (or any MCP client) build scenes with phones and tablets, put your app screenshots on their screens, light and animate them, and render stills and videos. No UI.
+Headless 3D device mockups for AI agents. An MCP server that lets Claude Code (or any MCP client) build scenes with phones and tablets, put your app screenshots on their screens, light and frame them, and render stills. No UI.
 
-> Status: Phase 1 of [PLAN.md](PLAN.md) — the scene format, engine and MCP server. Rendering arrives in Phase 2.
+<p align="center"><img src="tests/golden/reference/dark-trio-en.png" width="480" alt="Three phones rendered by devicewrapper"></p>
 
-## Quick start
+> **Status:** Phases 1–2 of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, and still rendering (PNG/JPEG/WebP). Video is Phase 3. See [DECISIONS.md](DECISIONS.md) for design choices and current limitations.
+
+## Setup
+
+Requires Node 20+ and pnpm. FFmpeg is only needed for video (Phase 3).
 
 ```bash
+git clone https://github.com/ismaelviejo/devicewrapper.git
+cd devicewrapper
 pnpm install
 pnpm build
+pnpm setup        # downloads the headless Chromium used for rendering
 ```
 
-Register the server with Claude Code from the project you want mockups in:
+## Use it from Claude Code in another project
+
+From the project you want mockups in:
 
 ```bash
 cd ~/code/my-app
@@ -31,37 +40,66 @@ Or commit a `.mcp.json` in that project:
 }
 ```
 
-The server's workspace is the directory it starts in (override with `DEVICEWRAPPER_WORKSPACE`). Scenes, job records and renders go in `<workspace>/.devicewrapper/`. Screenshots are referenced in place by workspace-relative path; the server can't read or write outside the workspace (see `.env.example` for extra roots).
+The workspace is the directory the server starts in (override with `DEVICEWRAPPER_WORKSPACE`). Scenes, job records and renders go in `<workspace>/.devicewrapper/`, so add that to the project's `.gitignore` if you don't want renders committed. Screenshots are referenced in place by workspace-relative path. The server can't read or write outside the workspace; `.env.example` shows how to allow extra folders.
 
 Then ask Claude things like:
 
-> Create a 1080p hero shot of a black phone showing `design/screens/home.png`, turned slightly right, on a soft light gradient.
+> Make a 1080p hero shot of a silver phone showing `design/screens/home.png`, turned slightly, on a soft lavender gradient with a subtle shadow. Show me a preview first.
+
+> Put `a.png`, `b.png` and `c.png` on three midnight phones in a slight arc on a dark studio background, add the headline "Train smarter", and render it in English and Spanish.
+
+## What the agent gets
+
+**Tools (26)**
+
+| Area | Tools |
+|---|---|
+| Scenes | `create_scene`, `list_scenes`, `get_scene`, `update_scene`, `duplicate_scene`, `delete_scene`, `validate_scene`, `import_scene`, `export_scene` |
+| Nodes | `add_device`, `add_node` (plane, primitive, group, text), `update_node`, `remove_node` |
+| Look | `set_camera` (auto-framing shots), `set_lights` (presets), `set_background`, `set_effects` |
+| Motion | `set_track`, `remove_track` |
+| Assets & text | `import_asset`, `set_variables` (localization) |
+| Rendering | `render_preview` (returns the image inline), `render`, `get_render_job`, `list_render_jobs`, `cancel_render_job` |
+
+**Resources:** `devicewrapper://guide` (workflow and composition tips), `schema/scene` (JSON Schema), `devices`, `presets`, `animatable`, `capabilities`, and every saved scene at `devicewrapper://scenes/{id}`.
+
+**Devices:** `phone-modern`, `phone-classic`, `tablet`, each with color variants. Add your own with a JSON file in `.devicewrapper/devices/`.
+
+## CLI
+
+```bash
+devicewrapper mcp                         # MCP server over stdio
+devicewrapper render hero -o hero.png     # scene ID or path/to/scene.json; format from the extension
+devicewrapper render hero -o hero-es.jpg --locale es --width 2560
+devicewrapper validate hero
+devicewrapper scenes
+devicewrapper devices
+devicewrapper setup
+```
+
+(From a clone, `devicewrapper` is `node packages/cli/dist/index.js`.)
 
 ## Packages
 
 | Package | What it does |
 |---|---|
 | `@devicewrapper/schema` | Zod schemas for the scene format; JSON Schema export |
-| `@devicewrapper/core` | Pure scene operations, validation, timeline evaluation, camera framing, workspace + scene store, assets |
+| `@devicewrapper/core` | Pure scene operations, validation, timeline evaluation, camera framing, workspace, scene store, assets, device definitions and presets |
+| `@devicewrapper/renderer` | Three.js in headless Chromium; texture preparation with sharp |
 | `@devicewrapper/jobs` | `Engine` facade and the render job queue |
-| `@devicewrapper/mcp` | The MCP server: 26 tools + resources |
-| `devicewrapper` (cli) | `devicewrapper mcp`, `validate`, `render`, `scenes`, `devices`, `setup` |
-
-## CLI
-
-```bash
-devicewrapper mcp                 # MCP server over stdio
-devicewrapper validate hero       # scene ID or path/to/scene.json
-devicewrapper scenes
-devicewrapper devices
-```
+| `@devicewrapper/mcp` | The MCP server |
+| `devicewrapper` | CLI |
 
 ## Development
 
 ```bash
 pnpm build
 pnpm typecheck
-pnpm test
+pnpm test:unit        # fast, no browser
+pnpm test:golden      # renders and compares against tests/golden/reference
+pnpm test             # both
 ```
 
-See [PLAN.md](PLAN.md) for the roadmap and [CLAUDE.md](CLAUDE.md) for the working rules.
+Rendering is deterministic by default (`DEVICEWRAPPER_RENDER_MODE=deterministic`, CPU WebGL), so golden tests compare pixels. `docker/Dockerfile` builds a pinned render environment.
+
+See [PLAN.md](PLAN.md) for the roadmap, [DECISIONS.md](DECISIONS.md) for design choices, and [CLAUDE.md](CLAUDE.md) for the working rules.

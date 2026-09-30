@@ -22,6 +22,9 @@
     },
     {
       "path": "../schema"
+    },
+    {
+      "path": "../renderer"
     }
   ]
 }

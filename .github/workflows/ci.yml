@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pnpm build
+      - run: pnpm exec playwright-core install --with-deps chromium-headless-shell
+        working-directory: packages/renderer
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+      - run: pnpm test:golden
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-actual
+          path: tests/golden/__actual__

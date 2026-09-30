@@ -1,0 +1,34 @@
+{
+  "name": "@devicewrapper/renderer",
+  "version": "0.1.0",
+  "description": "Headless Three.js renderer (Playwright + Chromium) for devicewrapper scenes",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "page"
+  ],
+  "scripts": {
+    "build": "tsc -b && node scripts/build-page.mjs"
+  },
+  "dependencies": {
+    "@devicewrapper/core": "workspace:*",
+    "@devicewrapper/schema": "workspace:*",
+    "playwright-core": "1.55.0",
+    "sharp": "^0.35.5",
+    "@fontsource-variable/inter": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "esbuild": "^0.28.2",
+    "three": "^0.186.1"
+  }
+}

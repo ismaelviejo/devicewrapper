@@ -49,7 +49,7 @@ export function registerNodeTools(server: McpServer, engine: Engine): void {
         color: z.string().optional().describe("Color variant name (e.g. 'black', 'silver') or hex. Default: the model's first color."),
         screen: DeviceScreenInput.optional(),
         position: Vec3.optional().describe("Meters. Default [0,0,0]."),
-        rotation: Vec3.optional().describe("Degrees [x,y,z]. E.g. [0,-20,0] turns the screen slightly to the right."),
+        rotation: Vec3.optional().describe("Degrees [x,y,z]. [0,-20,0] turns the screen to face left (showing the right edge); [0,20,0] faces right."),
         scale: z.number().positive().optional(),
         parent: Id.optional().describe("Group node to attach to."),
         castShadow: z.boolean().optional(),

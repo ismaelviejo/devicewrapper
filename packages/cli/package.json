@@ -15,7 +15,8 @@
     "@devicewrapper/jobs": "workspace:*",
     "@devicewrapper/mcp": "workspace:*",
     "@devicewrapper/schema": "workspace:*",
-    "commander": "^15.0.0"
+    "commander": "^15.0.0",
+    "@devicewrapper/renderer": "workspace:*"
   },
   "devDependencies": {},
   "bin": {

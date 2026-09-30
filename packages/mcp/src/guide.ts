@@ -22,7 +22,7 @@ devicewrapper builds and renders 3D device mockups. Everything is a **scene**: J
 
 - Meters and degrees. +X right, +Y up, +Z toward the default camera.
 - A device at [0,0,0] is centered on the origin with its screen facing +Z.
-- rotation [0, -20, 0] turns the screen toward the right side of the frame; [10, 0, 0] tilts its top away.
+- rotation [0, -20, 0] turns the screen to face left (you see its right edge); [0, 20, 0] faces right; [-10, 0, 0] tilts the top away from the camera.
 - Place a floor just under a standing phone: phone height is ~0.15 m, so a plane at y = -0.075 touches its bottom edge.
 - For a device floating over a flat background with a soft shadow: add a plane with material { type: 'shadowCatcher', opacity: 0.25 } a few cm below it.
 

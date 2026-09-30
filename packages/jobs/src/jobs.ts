@@ -199,9 +199,10 @@ export class JobManager {
     return report.warnings;
   }
 
-  create(req: RenderRequest): RenderJob {
+  /** Queues a render. Pass `sceneOverride` to render a scene that isn't saved in the store (e.g. a JSON file). */
+  create(req: RenderRequest, sceneOverride?: Scene): RenderJob {
     const backend = this.backend;
-    const scene = this.engine.store.load(req.sceneId);
+    const scene = sceneOverride ?? this.engine.store.load(req.sceneId);
     const warnings = this.checkScene(scene, req);
     const plan = this.plan(scene, req);
     if (plan.kind === "video" && !backend.renderVideo) {
