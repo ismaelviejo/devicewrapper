@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Background, Color, Effect, type Scene } from "@devicewrapper/schema";
+import { Background, Color, Effect, Environment, type Scene } from "@devicewrapper/schema";
 import { z } from "zod";
 import { BUILTIN_ASSETS_DIR, type DeviceRegistry } from "./devices.js";
 import { DwError, schemaError } from "./errors.js";
@@ -8,16 +8,29 @@ import { setFloor, type FloorSpec } from "./layout.js";
 import { setBackground, setEffects, setLights, updateNode } from "./ops.js";
 import { LIGHTING_PRESET_NAMES } from "./presets.js";
 
+/** Floor choices shared by styles, apply_style and set_floor-like options. */
+export const FloorSpecSchema = z
+  .discriminatedUnion("type", [
+    z.object({ type: z.literal("none") }),
+    z.object({ type: z.literal("shadow"), opacity: z.number().min(0).max(1).optional() }),
+    z.object({ type: z.literal("solid"), color: Color, roughness: z.number().min(0).max(1).optional(), metalness: z.number().min(0).max(1).optional() }),
+    z.object({
+      type: z.literal("reflective"),
+      strength: z.number().min(0).max(1).optional(),
+      blur: z.number().min(0).max(1).optional(),
+      fade: z.number().min(0).max(1).optional(),
+      shadowOpacity: z.number().min(0).max(1).optional(),
+    }),
+  ])
+  .describe("none; shadow (invisible floor with a soft contact shadow); solid (visible colored floor); reflective (glossy mirror image of the devices over the background, plus a shadow).");
+
 const StyleSchema = z.object({
   description: z.string(),
   background: Background,
   lighting: z.string(),
   lightOverrides: z.array(z.record(z.string(), z.unknown())).default([]),
-  floor: z.union([
-    z.object({ type: z.literal("none") }),
-    z.object({ type: z.literal("shadow"), opacity: z.number().min(0).max(1).optional() }),
-    z.object({ type: z.literal("solid"), color: Color, roughness: z.number().optional(), metalness: z.number().optional() }),
-  ]),
+  environment: Environment.optional(),
+  floor: FloorSpecSchema,
   effects: z.array(Effect).default([]),
   textColor: Color,
   deviceColors: z.record(z.string(), z.string()).default({}),
@@ -53,6 +66,7 @@ export function applyStyle(scene: Scene, opts: ApplyStyleOptions, devices: Devic
   if (!st) throw new DwError("UNKNOWN_STYLE", `Unknown style '${opts.style}'. Use one of: ${STYLE_NAMES.join(", ")}.`);
   let s = setBackground(scene, st.background);
   s = setLights(s, { preset: st.lighting, ...(st.lightOverrides.length ? { lights: st.lightOverrides } : {}) });
+  if (st.environment) s = { ...s, environment: st.environment };
   s = setEffects(s, { effects: st.effects });
   s = setFloor(s, opts.floor ?? st.floor, devices);
   if (opts.recolorText ?? true) {

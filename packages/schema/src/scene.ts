@@ -57,10 +57,13 @@ export type Background = z.infer<typeof Background>;
 
 /* ------------------------------------------------------------- environment */
 
-export const ENVIRONMENT_PRESETS = ["studio", "soft", "none"] as const;
+export const ENVIRONMENT_PRESETS = ["studio", "soft", "softbox", "sunset", "none"] as const;
 export const Environment = z
   .object({
-    preset: z.enum(ENVIRONMENT_PRESETS).default("studio").describe("Image-based lighting and reflections. 'none' disables them."),
+    preset: z
+      .enum(ENVIRONMENT_PRESETS)
+      .default("studio")
+      .describe("Image-based lighting and reflections: studio (bright room), soft (diffuse room), softbox (dark room with light strips — crisp highlights on glossy/dark devices), sunset (warm low sun, cool sky), none."),
     intensity: z.number().min(0).max(10).default(1),
     rotation: z.number().default(0).describe("Rotation of the environment around Y, degrees."),
   })
@@ -174,9 +177,17 @@ export const Material = z
       color: Color.default("#ffffff"),
       opacity: z.number().min(0).max(1).default(1),
     }),
+    z.object({
+      type: z.literal("reflective"),
+      strength: z.number().min(0).max(1).default(0.3).describe("How visible the mirror image is (0–1)."),
+      blur: z.number().min(0).max(1).default(0.25).describe("Glossy blur of the reflection (0 = mirror)."),
+      fade: z.number().min(0).max(1).default(0.5).describe("How quickly the reflection fades with height (0 = no fade, 1 = only the base is reflected)."),
+      color: Color.default("#ffffff").describe("Tint multiplied into the reflection."),
+      shadowOpacity: z.number().min(0).max(1).default(0.25).describe("Darkness of shadows received."),
+    }),
   ])
   .describe(
-    "pbr = physically based surface. shadowCatcher = invisible surface that only shows shadows (for floating objects over a flat background). unlit = flat color.",
+    "pbr = physically based surface. shadowCatcher = invisible surface that only shows shadows (for floating objects over a flat background). unlit = flat color. reflective = invisible floor that shows a soft mirror image and shadows over the background (planes only).",
   );
 export type Material = z.infer<typeof Material>;
 

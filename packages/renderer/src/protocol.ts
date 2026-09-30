@@ -8,7 +8,7 @@ import type { DeviceDefinition, Effect, Environment, Light, Material } from "@de
 export type PageBackground =
   | { type: "solid"; color: string }
   | { type: "gradient"; kind: "linear" | "radial"; angle: number; center: [number, number]; radius: number; stops: Array<{ color: string; offset: number }> }
-  | { type: "image"; url: string }
+  | { type: "image"; url: string; blur?: number }
   | { type: "transparent" };
 
 interface PageNodeBase {
@@ -79,6 +79,8 @@ export interface LoadPayload {
   nodes: PageNode[];
   fonts: PageFont[];
   seed: number;
+  /** Depth of field enabled on the camera (strength is animated in the frame state). */
+  dof: boolean;
 }
 
 export interface RenderFrameOptions {

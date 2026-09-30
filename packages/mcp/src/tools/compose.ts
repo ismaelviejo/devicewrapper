@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   ComposeBrief,
   DwError,
+  FloorSpecSchema,
   LAYOUTS,
   LAYOUT_NAMES,
   MOTIONS,
@@ -150,7 +151,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
     {
       title: "Apply style",
       description: [
-        "Apply a complete look in one call: background, lighting preset, effects and a floor (soft shadow), and recolor text to match.",
+        "Apply a complete look in one call: background, lighting preset, environment reflections, effects and a floor (soft shadow or glossy reflection), and recolor text to match.",
         `Styles: ${list(STYLES)}.`,
         "recolorDevices: true also switches devices to the style's suggested colors. Fine-tune afterwards with set_background / set_lights / set_effects.",
       ].join("\n"),
@@ -158,14 +159,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
         sceneId: SceneId,
         style: z.enum(STYLE_NAMES as [string, ...string[]]),
         recolorDevices: z.boolean().default(false),
-        floor: z
-          .union([
-            z.object({ type: z.literal("none") }),
-            z.object({ type: z.literal("shadow"), opacity: z.number().min(0).max(1).optional() }),
-            z.object({ type: z.literal("solid"), color: z.string(), roughness: z.number().optional(), metalness: z.number().optional() }),
-          ])
-          .optional()
-          .describe("Override the style's floor: none, a shadow-only floor, or a visible solid floor."),
+        floor: FloorSpecSchema.optional().describe("Override the style's floor: none, shadow, solid { color }, or reflective { strength, blur }."),
       },
       annotations: { idempotentHint: true },
     },

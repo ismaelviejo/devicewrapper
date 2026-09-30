@@ -29,6 +29,7 @@ Low-level building blocks are always available: create_scene, add_device, add_no
 - rotation [0, -20, 0] turns the screen to face left (you see its right edge); [0, 20, 0] faces right; [-10, 0, 0] tilts the top away from the camera.
 - Place a floor just under a standing phone: phone height is ~0.15 m, so a plane at y = -0.075 touches its bottom edge.
 - For a device floating over a flat background with a soft shadow: add a plane with material { type: 'shadowCatcher', opacity: 0.25 } a few cm below it.
+- For a glossy tabletop: a plane with material { type: 'reflective', strength: 0.3, blur: 0.25, fade: 0.5 } right under the devices (or apply_style { floor: { type: 'reflective' } }). Add camera padding so the reflection is in frame.
 
 ## Composition tips
 
@@ -38,6 +39,8 @@ Low-level building blocks are always available: create_scene, add_device, add_no
 - Pairs/trios: space phones ~0.085 m apart (x), rotate outer ones toward the center (±12–20° on Y), push the center one forward (z +0.02).
 - Dark studio: background gradient #1b1d24 → #07080b, lighting 'dark' or 'dramatic', vignette 0.35.
 - Light studio: background #f4f5f7 or a soft radial gradient, lighting 'soft-studio' or 'bright'.
+- Premium hardware look: style 'glossy-dark' (reflective floor, softbox environment). Environments (update_scene environment.preset): studio, soft, softbox (crisp strip highlights on glass/metal), sunset (warm), none.
+- Depth of field: set_camera { dof: { enabled: true, aperture: 0.3 } } focuses on the camera target; use it with 2+ devices at different depths. Bloom (set_effects) makes bright screens glow on dark backgrounds.
 - Screens: default fit 'cover' keeps the top of the screenshot. Use fit 'contain' with a matching screen.background to show the whole image.
 - Lower screen.glare (0–0.1) for flat, legible screens; raise it (0.3–0.5) for glossy product shots.
 

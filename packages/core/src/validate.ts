@@ -172,9 +172,14 @@ export function validateScene(input: unknown, ctx: ValidateContext): ValidationR
         break;
       }
       case "plane":
-      case "primitive":
+      case "primitive": {
         materialUse(n.material, `${p}.material`);
+        const mat = typeof n.material === "string" ? scene.materials[n.material] : n.material;
+        if (mat?.type === "reflective" && n.kind !== "plane") {
+          warn("NOT_RENDERED", `Reflective material on primitive '${n.id}' is drawn as a shadow-only surface; reflections work on planes only.`, `${p}.material`);
+        }
         break;
+      }
       case "text2d": {
         const known = new Set(["locale", ...Object.keys(scene.variables)]);
         for (const v of referencedVariables(n.content)) {

@@ -101,7 +101,7 @@ export function registerNodeTools(server: McpServer, engine: Engine): void {
       title: "Add node",
       description: [
         "Add a non-device node:",
-        "- plane: floor or wall. Faces +Y (a floor) by default; rotation [90,0,0] makes a wall facing the camera. For a floating device over a flat background, use material { type: 'shadowCatcher' } so only the shadow shows.",
+        "- plane: floor or wall. Faces +Y (a floor) by default; rotation [90,0,0] makes a wall facing the camera. For a floating device over a flat background, use material { type: 'shadowCatcher' } so only the shadow shows; material { type: 'reflective' } adds a glossy mirror image as well.",
         "- primitive: box | sphere | cylinder | cone | torus | capsule, sized in meters, for props and pedestals.",
         "- group: an empty transform; set other nodes' `parent` to it to move/rotate them together.",
         "- text2d: text drawn over the frame at a normalized `anchor` [x, y] (0..1, origin top-left); supports {{variables}} for localization.",

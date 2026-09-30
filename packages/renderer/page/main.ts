@@ -5,9 +5,10 @@
  */
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { FrameState, LightFrame, NodeFrame } from "@devicewrapper/core";
-import type { DeviceDefinition, Light, Material } from "@devicewrapper/schema";
+import type { DeviceDefinition, Effect, Light, Material } from "@devicewrapper/schema";
 import type { LoadPayload, PageApi, PageBackground, PageDevice, PageLimits, PageNode, PageText, RenderFrameOptions } from "../src/protocol.js";
 
 const DEG = Math.PI / 180;
@@ -41,11 +42,202 @@ function environmentTexture(preset: string): THREE.Texture | null {
   if (preset === "none") return null;
   let t = envCache.get(preset);
   if (!t) {
-    const room = new RoomEnvironment();
+    const room = preset === "softbox" ? softboxRoom() : preset === "sunset" ? sunsetRoom() : new RoomEnvironment();
     t = pmrem.fromScene(room, preset === "soft" ? 0.12 : 0.04).texture;
     envCache.set(preset, t);
   }
   return t;
+}
+
+/** An emissive panel for the procedural environments (values above 1 act as light sources). */
+function emitter(room: THREE.Scene, rgb: [number, number, number], size: [number, number], pos: [number, number, number], lookAt: [number, number, number] = [0, 0, 0]): void {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size[0], size[1]), new THREE.MeshBasicMaterial({ color: new THREE.Color(...rgb), side: THREE.DoubleSide }));
+  m.position.set(...pos);
+  m.lookAt(...lookAt);
+  room.add(m);
+}
+
+function roomShell(rgb: [number, number, number]): THREE.Scene {
+  const room = new THREE.Scene();
+  const shell = new THREE.Mesh(new THREE.BoxGeometry(30, 30, 30), new THREE.MeshBasicMaterial({ color: new THREE.Color(...rgb), side: THREE.BackSide }));
+  room.add(shell);
+  return room;
+}
+
+/** Dark studio with tall strip softboxes: crisp, graphic highlights on glass and metal. */
+function softboxRoom(): THREE.Scene {
+  const room = roomShell([0.012, 0.012, 0.014]);
+  emitter(room, [9, 9, 9], [1.2, 9], [-8, 3, 5]);
+  emitter(room, [7, 7, 7.4], [1.2, 9], [8, 3, 5]);
+  emitter(room, [5, 5, 5], [14, 3], [0, 13, 0], [0, 0, 0]);
+  emitter(room, [2.2, 2.2, 2.3], [1, 7], [0, 2, -12]);
+  emitter(room, [0.08, 0.08, 0.08], [30, 30], [0, -14.9, 0], [0, 0, 0]);
+  return room;
+}
+
+/** Warm low sun on one side, cool blue sky above, dusky ground. */
+function sunsetRoom(): THREE.Scene {
+  const room = roomShell([0.05, 0.04, 0.05]);
+  emitter(room, [0.35, 0.5, 0.95], [30, 30], [0, 14.9, 0]);
+  emitter(room, [0.6, 0.35, 0.3], [30, 12], [0, 2, -14.9], [0, 2, 0]);
+  emitter(room, [0.9, 0.45, 0.25], [30, 8], [14.9, 1, 0], [0, 1, 0]);
+  emitter(room, [40, 18, 6], [3, 3], [11, 2.5, 4]);
+  emitter(room, [0.12, 0.08, 0.06], [30, 30], [0, -14.9, 0], [0, 0, 0]);
+  return room;
+}
+
+/* ------------------------------------------------------------- reflections */
+
+/** Set during the DOF depth pass so mirrors don't re-render their reflection with the depth material. */
+let skipReflections = false;
+
+const REFLECT_SHADER = {
+  name: "SoftReflection",
+  uniforms: {
+    color: { value: null },
+    tDiffuse: { value: null },
+    textureMatrix: { value: null },
+    strength: { value: 0.3 },
+    blur: { value: 0.25 },
+    opacity: { value: 1 },
+    texel: { value: new THREE.Vector2(1 / 512, 1 / 512) },
+    fadeDir: { value: new THREE.Vector2(0, 1) },
+    fadeStart: { value: 0 },
+    fadeLen: { value: 0 },
+  },
+  vertexShader: /* glsl */ `
+    uniform mat4 textureMatrix;
+    varying vec4 vUv;
+    varying vec2 vWorldXZ;
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    void main() {
+      vUv = textureMatrix * vec4(position, 1.0);
+      vWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform vec3 color;
+    uniform sampler2D tDiffuse;
+    uniform float strength;
+    uniform float blur;
+    uniform float opacity;
+    uniform vec2 texel;
+    uniform vec2 fadeDir;
+    uniform float fadeStart;
+    uniform float fadeLen;
+    varying vec4 vUv;
+    varying vec2 vWorldXZ;
+    #include <logdepthbuf_pars_fragment>
+    void main() {
+      #include <logdepthbuf_fragment>
+      vec2 uv = vUv.xy / vUv.w;
+      vec4 acc = vec4(0.0);
+      float wsum = 0.0;
+      // Fixed 25-tap Gaussian over a mip level matched to the tap spacing: smooth, deterministic, no noise.
+      float spacing = max(blur * 12.0, 0.0);
+      float lod = log2(max(spacing, 1.0));
+      for (int x = -2; x <= 2; x++) {
+        for (int y = -2; y <= 2; y++) {
+          vec2 o = vec2(float(x), float(y));
+          float wgt = exp(-dot(o, o) / 4.5);
+          acc += textureLod(tDiffuse, uv + o * spacing * texel, lod) * wgt;
+          wsum += wgt;
+        }
+      }
+      vec4 refl = acc / wsum;
+      float a = clamp(refl.a, 0.0, 1.0);
+      vec3 rgb = a > 0.0 ? refl.rgb / max(a, 1e-4) : vec3(0.0);
+      // Fade with distance from the objects' front edge toward the camera (≈ height of the reflected point).
+      float fade = fadeLen > 0.0 ? 1.0 - smoothstep(0.0, fadeLen, dot(vWorldXZ, fadeDir) - fadeStart) : 1.0;
+      gl_FragColor = vec4(rgb * color, a * strength * opacity * fade);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+};
+
+function isInside(o: THREE.Object3D, ancestor: THREE.Object3D): boolean {
+  for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p === ancestor) return true;
+  return false;
+}
+
+function makeReflectiveFloor(size: [number, number], m: Extract<Material, { type: "reflective" }>): THREE.Group {
+  const g = new THREE.Group();
+  const res = 512;
+  const mirror = new Reflector(new THREE.PlaneGeometry(size[0], size[1]), {
+    textureWidth: res,
+    textureHeight: res,
+    color: color(m.color),
+    multisample: 0,
+    shader: REFLECT_SHADER,
+  });
+  const rtex = mirror.getRenderTarget().texture;
+  rtex.generateMipmaps = true;
+  rtex.minFilter = THREE.LinearMipmapLinearFilter;
+  const mat = mirror.material as THREE.ShaderMaterial;
+  mat.transparent = true;
+  mat.depthWrite = false;
+  mat.uniforms.strength!.value = m.strength;
+  mat.uniforms.blur!.value = m.blur;
+  mat.userData.baseOpacity = 1;
+  mat.userData.isReflector = true;
+  mirror.userData.isReflector = true;
+  const update = mirror.onBeforeRender;
+  mirror.onBeforeRender = function (r, sc, cam, geo, mt, grp) {
+    if (skipReflections) return;
+    // Keep the reflection at half the output resolution (the glossy blur hides the difference).
+    const buf = r.getDrawingBufferSize(new THREE.Vector2());
+    const tw = Math.max(64, Math.round(buf.x / 2)), th = Math.max(64, Math.round(buf.y / 2));
+    const rt = mirror.getRenderTarget();
+    if (rt.width !== tw || rt.height !== th) rt.setSize(tw, th);
+    (mat.uniforms.texel!.value as THREE.Vector2).set(1 / tw, 1 / th);
+    mat.uniforms.opacity!.value = mat.opacity;
+    // Fade: find what stands on the floor and how high it reaches, then how far toward the camera
+    // its reflection extends for this camera elevation.
+    if (m.fade > 0) {
+      const box = new THREE.Box3();
+      const tmp = new THREE.Box3();
+      sc.traverseVisible((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh || isInside(o, g)) return;
+        const mm = mesh.material as THREE.Material;
+        if (mm.userData.isGlare || mm instanceof THREE.ShadowMaterial) return;
+        if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+        tmp.copy(mesh.geometry.boundingBox!).applyMatrix4(mesh.matrixWorld);
+        box.union(tmp);
+      });
+      const floorY = mirror.getWorldPosition(new THREE.Vector3()).y;
+      const fwd = cam.getWorldDirection(new THREE.Vector3());
+      const dir = new THREE.Vector2(-fwd.x, -fwd.z);
+      if (!box.isEmpty() && dir.length() > 1e-4) {
+        dir.normalize();
+        const height = Math.max(0, box.max.y - floorY);
+        const tanElev = Math.max(0.05, Math.tan(Math.asin(Math.min(1, Math.max(0, -fwd.y)))));
+        // Front edge of the objects' footprint along the fade direction.
+        const corners = [box.min.x, box.max.x].flatMap((x) => [box.min.z, box.max.z].map((z) => x * dir.x + z * dir.y));
+        mat.uniforms.fadeStart!.value = Math.max(...corners);
+        mat.uniforms.fadeLen!.value = Math.max(1e-3, (height * (1.25 - m.fade)) / tanElev);
+        (mat.uniforms.fadeDir!.value as THREE.Vector2).copy(dir);
+      } else mat.uniforms.fadeLen!.value = 0;
+    } else mat.uniforms.fadeLen!.value = 0;
+    const shadow = g.userData.shadow as THREE.Object3D | undefined;
+    if (shadow) shadow.visible = false;
+    update.call(this, r, sc, cam, geo, mt, grp);
+    if (shadow) shadow.visible = true;
+  };
+  mirror.rotation.x = -Math.PI / 2;
+  mirror.renderOrder = -1;
+  g.add(mirror);
+  if (m.shadowOpacity > 0) {
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(size[0], size[1]), makeMaterial({ type: "shadowCatcher", opacity: m.shadowOpacity, color: "#000000" }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.0002;
+    shadow.receiveShadow = true;
+    g.add(shadow);
+    g.userData.shadow = shadow;
+  }
+  return g;
 }
 
 /* ------------------------------------------------------------- helpers */
@@ -128,6 +320,12 @@ function makeMaterial(m: Material): THREE.Material {
     case "unlit": {
       const mat = new THREE.MeshBasicMaterial({ color: color(m.color), opacity: m.opacity, transparent: m.opacity < 1 });
       mat.userData.baseOpacity = m.opacity;
+      return mat;
+    }
+    case "reflective": {
+      // Only planes get a real mirror (see makeReflectiveFloor); elsewhere it degrades to a shadow catcher.
+      const mat = new THREE.ShadowMaterial({ color: 0x000000, opacity: m.shadowOpacity, transparent: true });
+      mat.userData.baseOpacity = m.shadowOpacity;
       return mat;
     }
   }
@@ -653,11 +851,15 @@ async function load(payload: LoadPayload): Promise<void> {
       if (parts.lid) lids.set(n.id, { pivot: parts.lid, defaultAngle: parts.defaultLidAngle ?? 110 });
     } else if (n.kind === "plane") {
       const wrap = new THREE.Group();
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(n.size[0], n.size[1]), makeMaterial(n.material));
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.receiveShadow = n.receiveShadow;
-      mesh.castShadow = n.castShadow;
-      wrap.add(mesh);
+      if (n.material.type === "reflective") {
+        wrap.add(makeReflectiveFloor(n.size, n.material));
+      } else {
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(n.size[0], n.size[1]), makeMaterial(n.material));
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.receiveShadow = n.receiveShadow;
+        mesh.castShadow = n.castShadow;
+        wrap.add(mesh);
+      }
       obj = wrap;
     } else if (n.kind === "primitive") {
       const mesh = new THREE.Mesh(primitiveGeometry(n.shape, n.size, n.cornerRadius), makeMaterial(n.material));
@@ -897,7 +1099,14 @@ async function drawBackground(bg: PageBackground, w: number, h: number): Promise
       return;
     case "image": {
       const img = await loadBitmap(bg.url);
-      ctx2d.drawImage(img, 0, 0, w, h);
+      if (bg.blur && bg.blur > 0) {
+        // The backdrop is "far away": blur it like an out-of-focus background (edges extended to avoid a dark rim).
+        ctx2d.save();
+        ctx2d.filter = `blur(${bg.blur}px)`;
+        const pad = bg.blur * 2;
+        ctx2d.drawImage(img, -pad, -pad, w + pad * 2, h + pad * 2);
+        ctx2d.restore();
+      } else ctx2d.drawImage(img, 0, 0, w, h);
       return;
     }
   }
@@ -996,6 +1205,197 @@ function drawText(t: PageText, f: NodeFrame, w: number, h: number, scale: number
   ctx2d.restore();
 }
 
+/* ---------------------------------------------------------- post effects */
+
+/*
+ * Depth of field and bloom run as a small post pipeline over the finished frame:
+ * the scene is rendered normally (so screens keep their exact, un-tonemapped colors), copied into a
+ * texture, a cheap depth-only pass supplies depth, and a full-screen pass writes the result back.
+ * Scenes without DOF or bloom skip all of this.
+ */
+const FULLSCREEN_VERT = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+
+const DOF_FRAG = `
+uniform sampler2D tColor; uniform sampler2D tDepth; uniform sampler2D tBloomA; uniform sampler2D tBloomB;
+uniform vec2 resolution; uniform float focus; uniform float aperture; uniform float maxCoc;
+uniform float near; uniform float far; uniform bool ortho; uniform bool dofOn; uniform bool bloomOn; uniform float bloomStrength;
+varying vec2 vUv;
+float linearZ(float d) { return ortho ? near + d * (far - near) : (near * far) / (far - d * (far - near)); }
+float coc(float z) { return min(maxCoc, aperture * abs(z - focus) / max(z, 1e-4) * resolution.y * 2.0); }
+void main() {
+  vec4 c = texture2D(tColor, vUv);
+  if (dofOn) {
+    float zc = linearZ(texture2D(tDepth, vUv).x);
+    float cc = coc(zc);
+    vec4 acc = c; float wsum = 1.0;
+    float reach = max(cc, maxCoc);
+    for (int i = 1; i < 64; i++) {
+      float r = sqrt(float(i) / 64.0);
+      float th = float(i) * 2.39996323;
+      vec2 dir = vec2(cos(th), sin(th));
+      float dist = r * reach;
+      vec2 uv = vUv + dir * dist / resolution;
+      float zs = linearZ(texture2D(tDepth, uv).x);
+      float cs = coc(zs);
+      // A sample contributes if its own blur reaches this pixel (out-of-focus foreground spreading over
+      // the background), or if this pixel is itself blurred that far and the sample is not in front of it.
+      float w = (cs >= dist ? 1.0 : 0.0);
+      if (w == 0.0 && cc >= dist && zs >= zc - 0.002) w = 1.0;
+      acc += texture2D(tColor, uv) * w;
+      wsum += w;
+    }
+    c = acc / wsum;
+  }
+  if (bloomOn) {
+    vec3 b = (texture2D(tBloomA, vUv).rgb + texture2D(tBloomB, vUv).rgb) * bloomStrength;
+    c.rgb += b;
+    c.a = max(c.a, min(1.0, max(b.r, max(b.g, b.b))));
+  }
+  gl_FragColor = c;
+}`;
+
+const BRIGHT_FRAG = `
+uniform sampler2D tColor; uniform float threshold; varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(tColor, vUv);
+  float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+  // Only the part above the threshold glows (soft knee), so white UI glows gently instead of blowing out.
+  float excess = max(l - threshold, 0.0);
+  float knee = excess * excess / (excess + 0.08);
+  gl_FragColor = vec4(c.rgb * (knee / max(l, 1e-4)), 1.0);
+}`;
+
+const BLUR_FRAG = `
+uniform sampler2D tInput; uniform vec2 direction; uniform vec2 resolution; varying vec2 vUv;
+void main() {
+  vec3 sum = texture2D(tInput, vUv).rgb * 0.2270270;
+  vec2 step1 = direction * 1.3846153 / resolution, step2 = direction * 3.2307692 / resolution;
+  sum += texture2D(tInput, vUv + step1).rgb * 0.3162162 + texture2D(tInput, vUv - step1).rgb * 0.3162162;
+  sum += texture2D(tInput, vUv + step2).rgb * 0.0702703 + texture2D(tInput, vUv - step2).rgb * 0.0702703;
+  gl_FragColor = vec4(sum, 1.0);
+}`;
+
+interface Post {
+  w: number;
+  h: number;
+  color: THREE.FramebufferTexture;
+  depth: THREE.WebGLRenderTarget;
+  bloom: THREE.WebGLRenderTarget[];
+}
+
+let post: Post | null = null;
+const quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+const quadScene = new THREE.Scene();
+quadScene.add(quad);
+const fsMaterial = (fragmentShader: string, uniforms: Record<string, THREE.IUniform>) =>
+  new THREE.ShaderMaterial({ vertexShader: FULLSCREEN_VERT, fragmentShader, uniforms, depthTest: false, depthWrite: false, blending: THREE.NoBlending, toneMapped: false });
+const dofMat = fsMaterial(DOF_FRAG, {
+  tColor: { value: null }, tDepth: { value: null }, tBloomA: { value: null }, tBloomB: { value: null },
+  resolution: { value: new THREE.Vector2() }, focus: { value: 1 }, aperture: { value: 0 }, maxCoc: { value: 0 },
+  near: { value: 0.01 }, far: { value: 100 }, ortho: { value: false }, dofOn: { value: false }, bloomOn: { value: false }, bloomStrength: { value: 0 },
+});
+const brightMat = fsMaterial(BRIGHT_FRAG, { tColor: { value: null }, threshold: { value: 0.85 } });
+const blurMat = fsMaterial(BLUR_FRAG, { tInput: { value: null }, direction: { value: new THREE.Vector2() }, resolution: { value: new THREE.Vector2() } });
+const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+
+function ensurePost(w: number, h: number): Post {
+  if (post && post.w === w && post.h === h) return post;
+  if (post) {
+    post.color.dispose();
+    post.depth.dispose();
+    post.bloom.forEach((t) => t.dispose());
+  }
+  const rt = (rw: number, rh: number) => new THREE.WebGLRenderTarget(Math.max(1, rw), Math.max(1, rh), { type: THREE.HalfFloatType, depthBuffer: false });
+  const depthTexture = new THREE.DepthTexture(w, h);
+  depthTexture.type = THREE.UnsignedIntType;
+  post = {
+    w,
+    h,
+    color: new THREE.FramebufferTexture(w, h),
+    depth: new THREE.WebGLRenderTarget(w, h, { depthTexture, depthBuffer: true }),
+    bloom: [rt(w / 2, h / 2), rt(w / 2, h / 2), rt(w / 4, h / 4), rt(w / 4, h / 4)],
+  };
+  post.color.minFilter = THREE.LinearFilter;
+  post.color.magFilter = THREE.LinearFilter;
+  return post;
+}
+
+function fullscreen(material: THREE.Material, target: THREE.WebGLRenderTarget | null): void {
+  quad.material = material;
+  renderer.setRenderTarget(target);
+  renderer.render(quadScene, quadCamera);
+}
+
+function blurInto(src: THREE.Texture, tmp: THREE.WebGLRenderTarget, dst: THREE.WebGLRenderTarget, spread: number): void {
+  blurMat.uniforms.resolution!.value.set(tmp.width, tmp.height);
+  blurMat.uniforms.tInput!.value = src;
+  blurMat.uniforms.direction!.value.set(spread, 0);
+  fullscreen(blurMat, tmp);
+  blurMat.uniforms.tInput!.value = tmp.texture;
+  blurMat.uniforms.direction!.value.set(0, spread);
+  fullscreen(blurMat, dst);
+}
+
+/** Applies DOF and/or bloom to what is currently in the canvas. */
+function postProcess(b: Built, frame: FrameState, w: number, h: number): void {
+  const bloom = b.payload.effects.find((e) => e.type === "bloom") as Extract<Effect, { type: "bloom" }> | undefined;
+  const dofOn = b.payload.dof && frame.camera.dofAperture > 0;
+  if (!dofOn && !bloom) return;
+  const p = ensurePost(w, h);
+  renderer.setRenderTarget(null);
+  renderer.copyFramebufferToTexture(p.color);
+
+  if (dofOn) {
+    // Depth-only pass (cheap): hide glare layers and nearly invisible meshes so they don't occlude.
+    const hidden: THREE.Object3D[] = [];
+    b.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+      if ((o as THREE.Mesh).isMesh && o.visible && m && (m.userData.isGlare || m.userData.isReflector || (m.opacity < 0.1 && !(m instanceof THREE.ShadowMaterial)))) {
+        o.visible = false;
+        hidden.push(o);
+      }
+    });
+    const bg = b.scene.background;
+    b.scene.overrideMaterial = depthOnly;
+    skipReflections = true;
+    renderer.setRenderTarget(p.depth);
+    renderer.clear();
+    renderer.render(b.scene, b.camera);
+    skipReflections = false;
+    b.scene.overrideMaterial = null;
+    b.scene.background = bg;
+    for (const o of hidden) o.visible = true;
+  }
+
+  if (bloom) {
+    brightMat.uniforms.tColor!.value = p.color;
+    brightMat.uniforms.threshold!.value = bloom.threshold;
+    fullscreen(brightMat, p.bloom[0]!);
+    const spread = 1 + bloom.radius * 3;
+    blurInto(p.bloom[0]!.texture, p.bloom[1]!, p.bloom[0]!, spread);
+    blurMat.uniforms.tInput!.value = p.bloom[0]!.texture;
+    blurInto(p.bloom[0]!.texture, p.bloom[2]!, p.bloom[3]!, spread * 1.5);
+  }
+
+  const u = dofMat.uniforms;
+  u.tColor!.value = p.color;
+  u.tDepth!.value = p.depth.depthTexture;
+  u.tBloomA!.value = p.bloom[0]!.texture;
+  u.tBloomB!.value = p.bloom[3]!.texture;
+  u.resolution!.value.set(w, h);
+  u.focus!.value = frame.camera.dofFocusDistance;
+  u.aperture!.value = frame.camera.dofAperture;
+  u.maxCoc!.value = h * 0.03;
+  u.near!.value = b.camera.near;
+  u.far!.value = b.camera.far;
+  u.ortho!.value = b.camera instanceof THREE.OrthographicCamera;
+  u.dofOn!.value = dofOn;
+  u.bloomOn!.value = !!bloom;
+  u.bloomStrength!.value = bloom?.strength ?? 0;
+  fullscreen(dofMat, null);
+}
+
 /* ---------------------------------------------------------------- render */
 
 async function render(frame: FrameState, opts: RenderFrameOptions): Promise<string> {
@@ -1057,9 +1457,11 @@ async function render(frame: FrameState, opts: RenderFrameOptions): Promise<stri
   fitShadows(b);
   mark("fitShadows");
   applyCamera(b, frame.camera, w / h);
+  renderer.setRenderTarget(null);
   renderer.setClearColor(0x000000, 0);
   renderer.clear();
   renderer.render(b.scene, b.camera);
+  postProcess(b, frame, w, h);
   mark("webgl");
 
   composite.width = w;

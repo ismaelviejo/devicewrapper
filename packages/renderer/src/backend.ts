@@ -31,8 +31,8 @@ const MAX_VIDEO_SCREEN = 1600;
 export const CAPABILITIES: RendererCapabilities = {
   backgrounds: ["solid", "gradient", "image", "video", "transparent"],
   screenSources: ["image", "video", "color"],
-  effects: ["vignette", "fog", "grain"],
-  depthOfField: false,
+  effects: ["vignette", "fog", "grain", "bloom"],
+  depthOfField: true,
   text: true,
   video: true,
   fonts: ["Inter"],
@@ -381,6 +381,7 @@ export class ThreeChromiumRenderer implements RenderBackend {
       nodes,
       fonts,
       seed: scene.seed,
+      dof: cam.dof.enabled,
     };
   }
 
@@ -397,7 +398,9 @@ export class ThreeChromiumRenderer implements RenderBackend {
         const asset = scene.assets[bg.asset];
         if (!asset) throw new DwError("UNKNOWN_ASSET", `Background references missing asset '${bg.asset}'.`);
         const key = JSON.stringify(["bg", asset.hash ?? asset.absPath, w, h, bg.fit, bg.color]);
-        return { type: "image", url: await this.derive(key, () => prepareBackground(asset.absPath, w, h, bg.fit, bg.color)) };
+        const dof = scene.scene.camera.dof;
+        const blur = dof.enabled ? Math.round(Math.min(h * 0.03, dof.aperture * h * 0.6) * 10) / 10 : 0;
+        return { type: "image", url: await this.derive(key, () => prepareBackground(asset.absPath, w, h, bg.fit, bg.color)), ...(blur > 0 ? { blur } : {}) };
       }
       case "video":
         return { type: "solid", color: bg.color };

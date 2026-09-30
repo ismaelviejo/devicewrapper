@@ -203,7 +203,11 @@ export function fitFloor(scene: Scene, devices: DeviceRegistry): Scene {
   return updateNode(scene, "floor", { transform: { position: [0, y, r3((box.min[2] + box.max[2]) / 2)] } }, devices);
 }
 
-export type FloorSpec = { type: "none" } | { type: "shadow"; opacity?: number } | { type: "solid"; color: string; roughness?: number; metalness?: number };
+export type FloorSpec =
+  | { type: "none" }
+  | { type: "shadow"; opacity?: number }
+  | { type: "solid"; color: string; roughness?: number; metalness?: number }
+  | { type: "reflective"; strength?: number; blur?: number; fade?: number; shadowOpacity?: number };
 
 /** Adds, updates or removes the 'floor' plane, then fits it under the devices. */
 export function setFloor(scene: Scene, spec: FloorSpec, devices: DeviceRegistry): Scene {
@@ -216,7 +220,9 @@ export function setFloor(scene: Scene, spec: FloorSpec, devices: DeviceRegistry)
   const material =
     spec.type === "shadow"
       ? { type: "shadowCatcher", opacity: spec.opacity ?? 0.3 }
-      : { type: "pbr", color: spec.color, roughness: spec.roughness ?? 0.85, metalness: spec.metalness ?? 0 };
+      : spec.type === "reflective"
+        ? { type: "reflective", strength: spec.strength ?? 0.3, blur: spec.blur ?? 0.25, fade: spec.fade ?? 0.5, shadowOpacity: spec.shadowOpacity ?? 0.25 }
+        : { type: "pbr", color: spec.color, roughness: spec.roughness ?? 0.85, metalness: spec.metalness ?? 0 };
   if (existing) s = updateNode(s, "floor", { material, size: [20, 20] }, devices);
   else s = addNode(s, { id: "floor", kind: "plane", size: [20, 20], material, castShadow: false, receiveShadow: true }, devices).scene;
   return fitFloor(s, devices);

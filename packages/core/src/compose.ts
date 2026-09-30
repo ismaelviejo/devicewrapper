@@ -83,6 +83,7 @@ export const ComposeBrief = z
         focalLength: z.number().positive().optional(),
         padding: z.number().min(-0.9).max(5).optional(),
         shift: z.tuple([z.number(), z.number()]).optional().describe("Move the subject in frame: [x, y] fractions; +y moves it down."),
+        dof: z.number().min(0).max(1).optional().describe("Depth of field strength (aperture, e.g. 0.03–0.1), focused on the camera target."),
       })
       .optional(),
     text: z
@@ -248,6 +249,7 @@ export async function composeScene(ws: Workspace, devices: DeviceRegistry, input
     {
       focalLength: brief.camera?.focalLength ?? cam.focalLength,
       frame: { shot: brief.camera?.shot ?? cam.shot, padding, shift },
+      ...(brief.camera?.dof ? { patch: { dof: { enabled: true, aperture: brief.camera.dof } } } : {}),
     },
     devices,
   );

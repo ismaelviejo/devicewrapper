@@ -219,6 +219,34 @@ describe("device forms and templates", () => {
   });
 });
 
+describe("post effects", () => {
+  it("depth of field blurs devices behind the focus plane, bloom glows on dark scenes", async () => {
+    const { composeScene, setEffects } = await import("@devicewrapper/core");
+    await writeScreenshot(join(root, "screens/red.png"), 590, 1278, "#ff5a5f");
+    const dof = await composeScene(engine.ws, engine.devices, { devices: [{ screen: "screens/home.png" }, { screen: "screens/red.png" }, { screen: "screens/home.png" }], layout: "stack", camera: { focalLength: 85, dof: 0.08 } }, "dof");
+    const flat = { ...dof, camera: { ...dof.camera, dof: { ...dof.camera.dof, enabled: false } } };
+    const small = (s: typeof dof) => ({ ...s, canvas: { ...s.canvas, width: 320, height: 180 } });
+    const withDof = await render(small(dof));
+    expect(sha256(withDof)).not.toBe(sha256(await render(small(flat))));
+    compareGolden("dof-stack", withDof);
+    let neon = await composeScene(engine.ws, engine.devices, { devices: [{ screen: "screens/home.png" }], style: "midnight-neon" }, "neon");
+    neon = setEffects(neon, { upsert: [{ type: "bloom", strength: 0.6 }] });
+    compareGolden("bloom-neon", await render(small(neon)));
+    // Validation no longer flags DOF/bloom as unsupported.
+    const codes = engine.validate(neon).warnings.map((w) => w.code);
+    expect(codes).not.toContain("NOT_RENDERED");
+  });
+
+  it("reflective floor and softbox environment (glossy-dark) render deterministically", async () => {
+    const { composeScene } = await import("@devicewrapper/core");
+    const s = await composeScene(engine.ws, engine.devices, { devices: [{ screen: "screens/home.png" }, { screen: "screens/home.png" }], style: "glossy-dark", camera: { padding: 0.3 } }, "glossy");
+    const small = { ...s, canvas: { ...s.canvas, width: 320, height: 180 } };
+    const a = await render(small);
+    expect(sha256(a)).toBe(sha256(await render(small)));
+    compareGolden("glossy-dark", a);
+  });
+});
+
 describe("resilience", () => {
   it("recovers from a renderer page crash in the middle of a video", async () => {
     let s = await heroScene();

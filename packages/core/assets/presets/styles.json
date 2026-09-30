@@ -43,7 +43,8 @@
     "floor": { "type": "shadow", "opacity": 0.3 },
     "effects": [],
     "textColor": "#ffffff",
-    "deviceColors": { "smartphone": "natural", "laptop": "silver", "tablet": "silver", "watch": "starlight", "monitor": "silver" }
+    "deviceColors": { "smartphone": "natural", "laptop": "silver", "tablet": "silver", "watch": "starlight", "monitor": "silver" },
+    "environment": { "preset": "sunset", "intensity": 1, "rotation": 0 }
   },
   "mint": {
     "description": "Fresh mint gradient with bright light. Health, finance, productivity apps.",
@@ -71,5 +72,24 @@
     "effects": [],
     "textColor": "#111111",
     "deviceColors": {}
+  },
+  "glossy-dark": {
+    "description": "Black glossy tabletop with a soft mirror reflection and strip-softbox highlights. Premium hardware-launch look.",
+    "background": { "type": "gradient", "kind": "linear", "angle": 180, "stops": [{ "color": "#23252c", "offset": 0 }, { "color": "#0b0c0f", "offset": 0.62 }, { "color": "#050506", "offset": 1 }] },
+    "lighting": "dark",
+    "environment": { "preset": "softbox", "intensity": 1.2, "rotation": 0 },
+    "floor": { "type": "reflective", "strength": 0.28, "blur": 0.3, "shadowOpacity": 0.5 },
+    "effects": [{ "type": "vignette", "strength": 0.3, "color": "#000000" }],
+    "textColor": "#ffffff",
+    "deviceColors": { "smartphone": "midnight", "laptop": "space-black", "tablet": "space-gray", "watch": "midnight", "monitor": "space-black" }
+  },
+  "glossy-light": {
+    "description": "White glossy tabletop with a faint reflection and bright, even light. Clean store-listing look with extra depth.",
+    "background": { "type": "gradient", "kind": "linear", "angle": 180, "stops": [{ "color": "#ffffff", "offset": 0 }, { "color": "#eef0f4", "offset": 0.6 }, { "color": "#dfe2e8", "offset": 1 }] },
+    "lighting": "soft-studio",
+    "floor": { "type": "reflective", "strength": 0.18, "blur": 0.35, "shadowOpacity": 0.25 },
+    "effects": [],
+    "textColor": "#111318",
+    "deviceColors": { "smartphone": "black", "laptop": "space-black", "tablet": "space-gray", "watch": "midnight", "monitor": "silver" }
   }
 }

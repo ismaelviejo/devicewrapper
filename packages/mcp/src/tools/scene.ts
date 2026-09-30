@@ -98,7 +98,7 @@ export function registerSceneTools(server: McpServer, engine: Engine): void {
       title: "Update scene settings",
       description: [
         "Change scene-level settings. Every field is optional; objects are merged (only the fields you pass change).",
-        "canvas: width, height, fps, duration (seconds). environment: reflection preset (studio | soft | none), intensity, rotation.",
+        "canvas: width, height, fps, duration (seconds). environment: reflection/ambient preset (studio | soft | softbox | sunset | none), intensity, rotation.",
         "render: default output settings (format, quality, transparent, supersample, time). materials: named materials nodes can reference by ID (null deletes one).",
         "Example: { sceneId: 'hero', preset: '4k', canvas: { duration: 8, fps: 60 } }",
       ].join("\n"),

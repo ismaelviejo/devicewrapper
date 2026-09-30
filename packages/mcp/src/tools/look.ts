@@ -45,7 +45,7 @@ export function registerLookTools(server: McpServer, engine: Engine): void {
         dof: z
           .object({ enabled: z.boolean().optional(), focusDistance: z.number().positive().nullable().optional(), aperture: z.number().min(0).max(1).optional() })
           .optional()
-          .describe("Depth of field. focusDistance null = focus on the target."),
+          .describe("Depth of field (rendered): blurs what is nearer or farther than the focus. focusDistance null = focus on the camera target (meters otherwise); aperture 0..1 = blur strength (0.2–0.4 is natural). Image backgrounds blur too."),
         frame: z
           .object({
             shot: z.enum(CAMERA_SHOTS as [string, ...string[]]).default("hero"),

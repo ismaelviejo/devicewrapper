@@ -4,7 +4,7 @@ Headless 3D device mockups for AI agents. An MCP server that lets Claude Code (o
 
 <p align="center"><img src="tests/golden/reference/dark-trio-en.png" width="480" alt="Three phones rendered by devicewrapper"></p>
 
-> **Status:** Phases 1–4 of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, stills and video (MP4, WebM, ProRes, with transparency), six device models, layouts, styles, motion presets, 15 templates and one-call `compose_scene`. Next: Phase 5 (text and localization polish), Phase 6 (look development), Phase 7 (docs). See [DECISIONS.md](DECISIONS.md) for design choices and current limitations.
+> **Status:** Phases 1–6 of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, stills and video (MP4, WebM, ProRes, with transparency), six device models, layouts, styles, motion presets, 15 templates, one-call `compose_scene`, localized text, depth of field, bloom, reflective floors and studio/softbox/sunset environments. Next: Phase 7 (docs). See [DECISIONS.md](DECISIONS.md) for design choices and current limitations.
 
 ## Setup
 
@@ -72,7 +72,7 @@ Then ask Claude things like:
 
 **Templates (15):** hero-phone, hero-laptop, phone-pair, phone-trio, phone-tablet, phone-laptop, floating-phone, device-grid, device-carousel, app-store-hero, dark-product-shot, light-product-shot, watch-hero, desktop-setup, laptop-reveal. Add your own briefs in `.devicewrapper/templates/`.
 
-**Styles:** light-studio, dark-studio, soft-gradient, midnight-neon, sunset, mint, product-white, transparent. **Layouts:** hero, row, arc, fan, stack, grid, circle, showcase. **Motions:** 23 presets (float, slow-turn, turntable, rise, enter/exit, spin-reveal, lid-open, orbit, push-in, pan, crane, zoom …).
+**Styles:** light-studio, dark-studio, soft-gradient, midnight-neon, sunset, mint, product-white, transparent, glossy-dark, glossy-light. **Layouts:** hero, row, arc, fan, stack, grid, circle, showcase. **Motions:** 23 presets (float, slow-turn, turntable, rise, enter/exit, spin-reveal, lid-open, orbit, push-in, pan, crane, zoom …).
 
 ## CLI
 

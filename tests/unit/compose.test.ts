@@ -18,6 +18,7 @@ import {
   loadConfig,
   loadTemplates,
   validateScene,
+  parseScene,
   worldPoints,
   deviceSize,
   type Scene,
@@ -102,6 +103,24 @@ describe("styles", () => {
       const bottom = boundsOf(worldPoints(s, ["phone"], devices))!.min[1];
       expect(floor && floor.kind === "plane" && floor.transform.position[1], style).toBeCloseTo(bottom, 2);
     }
+  });
+
+  it("glossy styles use a reflective floor and their own environment", () => {
+    const s = applyStyle(withDevices(["phone-modern"]), { style: "glossy-dark" }, devices);
+    const floor = s.nodes.find((n) => n.id === "floor");
+    expect(floor?.kind === "plane" && floor.material).toMatchObject({ type: "reflective", strength: 0.28 });
+    expect(s.environment.preset).toBe("softbox");
+    // A style without an environment keeps the lighting preset's one; overriding the floor works.
+    const t = applyStyle(s, { style: "light-studio", floor: { type: "reflective", fade: 0.8 } }, devices);
+    expect(t.environment.preset).not.toBe("softbox");
+    const f2 = t.nodes.find((n) => n.id === "floor");
+    expect(f2?.kind === "plane" && f2.material).toMatchObject({ type: "reflective", fade: 0.8 });
+  });
+
+  it("warns when a reflective material is used on a primitive", () => {
+    const s = parseScene({ id: "r", nodes: [{ id: "box", kind: "primitive", shape: "box", material: { type: "reflective" } }] });
+    const codes = validateScene(s, { devices }).warnings.map((w) => w.code);
+    expect(codes).toContain("NOT_RENDERED");
   });
 });
 

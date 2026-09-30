@@ -106,9 +106,20 @@ Choices made while building, with the reason for each. Where the implementation 
 
 **CLI `--locales en,es,ja`** renders one file per locale (`-<locale>` suffix, or `{locale}` in the output path).
 
-### Known limitations after Phase 4
+## Phase 6: look development
 
-- Bloom and depth of field are accepted in the scene format but not drawn yet; validation warns `NOT_RENDERED`.
+**Depth of field and bloom are real post passes, not approximations in 2D.** After the main render the page copies the framebuffer, renders a cheap depth-only pass (glare layers, reflections and nearly invisible meshes hidden so they don't occlude), and runs a fixed-kernel gather shader that blurs by circle of confusion (focus on the camera target unless `focusDistance` is set; `aperture` 0..1 scales the blur). Everything is fixed-tap and noise-free, so frames stay deterministic. Image backgrounds are blurred in the 2D layer to match when DOF is on (gradients are already smooth). Bloom: soft-knee bright pass, two blur levels at quarter resolution, additive. The first version used a hard threshold and looked blown out on screens; the soft knee fixed it.
+
+**Reflective floor = `material: { type: 'reflective' }` on a plane.** Built on Three's `Reflector` with our own shader: the mirror image is rendered at half resolution into a transparent target, blurred with a 25-tap Gaussian over a matching mip level (the first 25-tap version without mips showed ghost copies), and drawn with alpha = coverage × strength × fade, so it sits over any background, including gradients and transparent PNGs. A shadow-catcher layer on top keeps the contact shadow. Fade is computed per frame from the devices' height and the camera elevation, so "reflection fades out halfway up the device" holds for any shot without tuning. On primitives the material degrades to a shadow catcher with a warning.
+
+**Two procedural environments.** `softbox` (near-black room with strip lights: graphic highlights on glass and dark metal) and `sunset` (warm low sun, blue sky). Built from emissive panels and prefiltered with PMREM like the existing `studio`, so no HDR files ship. Styles can now set the environment; `sunset` uses it, and two new styles use the reflective floor: `glossy-dark` (softbox) and `glossy-light`.
+
+**Floor specs share one schema.** `FloorSpecSchema` (none, shadow, solid, reflective) is exported from core and used by styles and `apply_style`, so the MCP tool can't drift from the data files.
+
+### Known limitations after Phase 6
+
+- Reflections show only the 3D scene, not the background, and there is no real roughness-based blur that grows with distance (blur is uniform).
+- The default shots frame the devices, not their reflection; add camera `padding` (≈0.3) to include it.
 - Videos render on one page at a time; spreading frames across pages would help on many-core machines.
 - The first render after the server starts takes about 10–20 s (Chromium start, shader compile, texture upload).
-- CJK and other non-Latin scripts beyond Latin/Cyrillic/Greek/Vietnamese need a font asset (import a TTF/OTF and use its asset ID as `font`).
+- Scripts outside Latin/Cyrillic/Greek/Vietnamese use system fonts (warned `SYSTEM_FONT_FALLBACK`); import a TTF/OTF asset for identical output across machines.
