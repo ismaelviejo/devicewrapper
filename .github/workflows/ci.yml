@@ -23,7 +23,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:unit
       - name: Generated docs are up to date
-        run: pnpm docs && git diff --exit-code -- docs/
+        run: pnpm run docs:gen && git diff --exit-code -- docs/
       - run: pnpm test:golden
       - if: failure()
         uses: actions/upload-artifact@v4

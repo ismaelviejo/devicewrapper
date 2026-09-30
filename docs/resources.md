@@ -1,6 +1,6 @@
 # MCP resources
 
-_Generated from the live server by `pnpm docs`._
+_Generated from the live server by `pnpm run docs:gen`._
 
 | URI | Name | Description |
 |---|---|---|

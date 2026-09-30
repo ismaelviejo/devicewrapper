@@ -4,7 +4,7 @@ The MCP tools are only as good as their descriptions: an agent sees nothing else
 
 ## How to run it
 
-1. `pnpm build && pnpm docs` (so the docs match the code).
+1. `pnpm build && pnpm run docs:gen` (so the docs match the code).
 2. Make a scratch workspace with a few screenshots (phone, tablet and laptop sizes).
 3. Give an agent (Claude Code works well) the briefs below, the two docs, and this way to call tools:
    ```sh

@@ -13,4 +13,4 @@
 | [Architecture](architecture.md) | Packages, data flow, design rules |
 | [Tool-description eval](eval.md) | How the tool descriptions are tested with real agents, and what the last run found |
 
-The generated docs are rebuilt with `pnpm build && pnpm docs`.
+The generated docs are rebuilt with `pnpm build && pnpm run docs:gen`.

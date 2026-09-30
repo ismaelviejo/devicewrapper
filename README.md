@@ -117,7 +117,7 @@ pnpm typecheck
 pnpm test:unit        # fast, no browser
 pnpm test:golden      # renders and compares against tests/golden/reference
 pnpm test             # both
-pnpm docs             # regenerate docs/tools.md, resources.md, catalog.md from the live server
+pnpm run docs:gen             # regenerate docs/tools.md, resources.md, catalog.md from the live server
 node scripts/gen-examples.mjs   # re-render the example gallery
 ```
 

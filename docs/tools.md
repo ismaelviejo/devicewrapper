@@ -1,6 +1,6 @@
 # MCP tools
 
-_Generated from the live server by `pnpm docs` — do not edit by hand._
+_Generated from the live server by `pnpm run docs:gen` — do not edit by hand._
 
 31 tools. Every tool returns JSON text; errors come back with `isError: true` and `{ error: { code, message, path?, hint? } }`.
 

@@ -118,7 +118,7 @@ Choices made while building, with the reason for each. Where the implementation 
 
 ## Phase 7: hardening and docs
 
-**Tool docs are generated from the live server** (`pnpm docs` → `docs/tools.md`, `docs/resources.md`), so they can't drift from the Zod schemas and descriptions.
+**Tool docs are generated from the live server** (`pnpm run docs:gen` → `docs/tools.md`, `docs/resources.md`), so they can't drift from the Zod schemas and descriptions.
 
 **Tool-description eval with real agents.** Two agents that read only the generated docs completed eight design briefs through the tools; their reports drove a round of fixes (see [docs/eval.md](docs/eval.md)). The biggest were real rendering bugs the golden tests couldn't catch because the references were produced by the same code: DOF bleeding the background over the in-focus subject, and a white sweep across black display glass on light styles.
 
