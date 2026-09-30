@@ -60,6 +60,10 @@ export class ChromeProcess {
     reader.on("error", () => fail("pipe error"));
     // A crashed renderer never answers pending calls; fail them right away instead.
     this.on("Target.targetCrashed", (p) => this.failTarget(String(p.targetId), `crashed (${String(p.status)})`));
+    // Some Chromium builds report a renderer crash only on the page's own session.
+    this.on("Inspector.targetCrashed", (_p, sid) => {
+      if (sid) this.failSession(sid, "crashed");
+    });
     this.on("Target.detachedFromTarget", (p) => {
       const sid = String(p.sessionId);
       for (const [id, q] of this.pending) {
@@ -75,7 +79,14 @@ export class ChromeProcess {
 
   private failTarget(targetId: string, why: string): void {
     const sid = this.sessionsByTarget.get(targetId);
-    if (!sid) return;
+    if (sid) this.failSession(sid, why);
+  }
+
+  /** Sessions whose renderer crashed: later calls fail at once instead of waiting forever. */
+  private readonly deadSessions = new Map<string, string>();
+
+  private failSession(sid: string, why: string): void {
+    this.deadSessions.set(sid, why);
     for (const [id, q] of this.pending) {
       if (q.sessionId === sid) {
         this.pending.delete(id);
@@ -147,6 +158,7 @@ export class ChromeProcess {
         if (msg.error) p.reject(new Error(`${p.method}: ${msg.error.message}`));
         else p.resolve(msg.result ?? {});
       } else if (msg.method) {
+        if (process.env.DW_CDP_TRACE && !/console|exception|Network|Page\.(frame|lifecycle|load|dom)/i.test(msg.method)) console.error("[cdp]", msg.method, msg.sessionId ?? "", JSON.stringify(msg.params ?? {}).slice(0, 160));
         for (const fn of this.listeners.get(msg.method) ?? []) fn(msg.params ?? {}, msg.sessionId);
       }
     }
@@ -154,6 +166,8 @@ export class ChromeProcess {
 
   send(method: string, params: Json = {}, sessionId?: string, timeoutMs = 0): Promise<Json> {
     if (this.closed) return Promise.reject(new Error(`Chromium is not running (${method})`));
+    const dead = sessionId ? this.deadSessions.get(sessionId) : undefined;
+    if (dead) return Promise.reject(new Error(`Target ${dead} before ${method}`));
     const id = this.nextId++;
     const msg = JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) });
     return new Promise<Json>((resolve, reject) => {
@@ -199,6 +213,7 @@ export class ChromeProcess {
         }),
       );
     }
+    await this.send("Inspector.enable", {}, sessionId);
     await this.send("Runtime.enable", {}, sessionId);
     await this.send("Page.enable", {}, sessionId);
     return page;

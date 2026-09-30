@@ -455,9 +455,21 @@ export class ThreeChromiumRenderer implements RenderBackend {
   }
 
   private async ensureLoaded(slot: Slot, payload: LoadPayload): Promise<void> {
-    if (slot.loadedKey !== payload.key) {
-      await this.withDeadline(slot, "loading the scene", 240_000, () => slot.page.call<void>("load", [payload]));
-      slot.loadedKey = payload.key;
+    if (slot.loadedKey === payload.key) return;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.withDeadline(slot, "loading the scene", 240_000, () => slot.page.call<void>("load", [payload]));
+        slot.loadedKey = payload.key;
+        return;
+      } catch (e) {
+        // A page that crashed (or was replaced after hanging) while loading gets one fresh try.
+        const msg = (e as Error).message ?? "";
+        const retryable = e instanceof DwError ? e.code === "RENDER_TIMEOUT" : /crash|closed|Chromium|Target/i.test(msg);
+        if (!retryable || attempt >= 1) throw e;
+        if (!(e instanceof DwError)) await this.replaceSlotPage(slot);
+        if (!this.browser) throw e;
+        process.stderr.write(`[renderer] page restarted while loading the scene after ${msg}; retrying\n`);
+      }
     }
   }
 
