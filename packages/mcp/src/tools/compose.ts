@@ -184,6 +184,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
       title: "Apply motion preset",
       description: [
         "Add a named animation relative to the current pose. Device motions target all top-level devices by default (entrances are staggered), or `target`.",
+        "Text: target a text node ID or 'texts' (all text) with fade-in, fade-out, rise, drop-in, enter-left/right, exit-left/right.",
         `Presets: ${list(MOTIONS)}.`,
         "Timing: start/duration in seconds (defaults: whole timeline; entrances ~1.2 s at the start; exits at the end). amount scales the motion.",
         "Motions layer: if the property is already animated (e.g. float then rise), the device is wrapped in a group and the group is animated (stack: 'auto'; use 'replace' to overwrite).",

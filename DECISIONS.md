@@ -94,6 +94,18 @@ Choices made while building, with the reason for each. Where the implementation 
 
 **Bug found in review: text didn't scale with render size.** Text sizes are canvas pixels, but the page scaled them only by supersampling, so a 640 px preview of a 1920 px scene drew text 3× too large. Now scaled by buffer width / canvas width.
 
+**Soak test passed:** two full 5 s 1080p orbit renders (150 frames each, ~3.5 min each on 2 cores) produced identical frames, with Node memory flat at about 200 MB.
+
+## Phase 5: text and localization
+
+**Texts at the same position stack.** In `compose_scene`, the first text at a position is a headline, later ones are subtitles (smaller, lighter, slightly transparent) placed below it; bottom texts stack upward. The camera shifts the subject further for each extra line.
+
+**Texts animate.** `apply_motion` with a text node ID or `target: 'texts'` supports fade-in/out, rise, drop-in and enter/exit (anchor + opacity), staggered across texts.
+
+**CJK and other scripts come from system fonts, with a warning.** Noto CJK packages are 50–80 MB each, too heavy to bundle. The bundled Inter covers Latin, Cyrillic, Greek and Vietnamese; anything else falls back to the machine's fonts (macOS ships CJK fonts; the Docker image adds Noto CJK and emoji). Validation warns `SYSTEM_FONT_FALLBACK` per locale because such text can look different on another machine, and points to importing a font asset for exact results. Verified: one `render` call with `locales: [en, es, fr, de, ja]` produced five MP4s with correct Japanese glyphs.
+
+**CLI `--locales en,es,ja`** renders one file per locale (`-<locale>` suffix, or `{locale}` in the output path).
+
 ### Known limitations after Phase 4
 
 - Bloom and depth of field are accepted in the scene format but not drawn yet; validation warns `NOT_RENDERED`.

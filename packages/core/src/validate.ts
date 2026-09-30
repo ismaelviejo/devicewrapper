@@ -3,9 +3,26 @@ import { Scene, STILL_FORMATS, VIDEO_FORMATS, type Node } from "@devicewrapper/s
 import { resolveDeviceColor, type DeviceRegistry } from "./devices.js";
 import { formatPath, isDwError, type IssueDetail } from "./errors.js";
 import { animatableProperties, checkValue, findTarget } from "./properties.js";
-import { referencedVariables } from "./resolve.js";
+import { referencedVariables, substitute, variablesFor } from "./resolve.js";
 import { migrateScene } from "./store.js";
 import type { Workspace } from "./workspace.js";
+
+const GENERIC_FONTS = new Set(["system-ui", "sans-serif", "serif", "monospace", "cursive", "fantasy"]);
+
+const SCRIPTS: Array<[string, RegExp]> = [
+  ["Japanese/Chinese", /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/],
+  ["Korean", /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/],
+  ["Arabic", /[\u0600-\u06ff\u0750-\u077f\ufb50-\ufdff\ufe70-\ufeff]/],
+  ["Hebrew", /[\u0590-\u05ff]/],
+  ["Thai", /[\u0e00-\u0e7f]/],
+  ["Indic", /[\u0900-\u0dff]/],
+  ["emoji", /\p{Extended_Pictographic}/u],
+];
+
+/** Scripts in `text` that Inter (Latin, Cyrillic, Greek, Vietnamese) doesn't cover. */
+export function scriptsNotInInter(text: string): string[] {
+  return SCRIPTS.filter(([, re]) => re.test(text)).map(([name]) => name);
+}
 
 export interface ValidationIssue extends IssueDetail {
   severity: "error" | "warning";
@@ -166,9 +183,17 @@ export function validateScene(input: unknown, ctx: ValidateContext): ValidationR
             if (!(v in dict) && !known.has(v)) warn("MISSING_TRANSLATION", `Locale '${loc}' has no value for {{${v}}} used by '${n.id}'.`, `locales.${loc}`);
           }
         }
+        const fontAssets = new Set(Object.entries(scene.assets).filter(([, a]) => a.type === "font").map(([id]) => id));
         if (caps && !caps.text) warn("NOT_RENDERED", `Text node '${n.id}' will not be drawn: the current renderer has no text support yet.`, p);
-        else if (caps && !caps.fonts.includes(n.font) && !Object.values(scene.assets).some((a) => a.type === "font")) {
-          warn("UNKNOWN_FONT", `Font '${n.font}' is not bundled (bundled: ${caps.fonts.join(", ")}). A fallback font will be used.`, `${p}.font`);
+        else if (caps && !caps.fonts.includes(n.font) && !GENERIC_FONTS.has(n.font) && !fontAssets.has(n.font)) {
+          warn("UNKNOWN_FONT", `Font '${n.font}' is neither bundled (${caps.fonts.join(", ")}) nor an imported font asset; Inter or a system font will be used.`, `${p}.font`, "Import a TTF/OTF/WOFF with import_asset and set font to its asset ID.");
+        }
+        if (caps?.text && !fontAssets.has(n.font)) {
+          const texts = [substitute(n.content, variablesFor(scene)), ...Object.keys(scene.locales).map((loc) => substitute(n.content, variablesFor(scene, loc)))];
+          const scripts = new Set(texts.flatMap((t) => scriptsNotInInter(t)));
+          if (scripts.size) {
+            warn("SYSTEM_FONT_FALLBACK", `Text '${n.id}' contains ${[...scripts].join(", ")} characters, which the bundled Inter font doesn't cover; they'll use this machine's system fonts, so they may look different on another machine.`, `${p}.content`, "For consistent output, import a font that covers these scripts (e.g. Noto Sans JP) and set font to its asset ID.");
+          }
         }
         break;
       }

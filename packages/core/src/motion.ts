@@ -42,7 +42,7 @@ export const MOTION_NAMES = Object.keys(MOTIONS);
 
 export interface MotionOptions {
   preset: string;
-  /** Node ID, 'camera', or omitted = all top-level devices (device motions) / the camera. */
+  /** Node ID, 'camera', 'texts' (all text nodes), or omitted = all top-level devices (device motions) / the camera. */
   target?: string;
   start?: number;
   duration?: number;
@@ -173,6 +173,44 @@ function nodeKeyframes(scene: Scene, preset: string, targetId: string, start: nu
   }
 }
 
+const TEXT_MOTIONS = new Set(["fade-in", "fade-out", "rise", "drop-in", "enter-left", "enter-right", "exit-left", "exit-right"]);
+
+/** Text motions animate the 2D anchor (normalized canvas coords) and opacity. */
+function textKeyframes(scene: Scene, preset: string, targetId: string, start: number, duration: number, amount: number | undefined, easing: string | undefined): Array<{ property: string; keyframes: Kf[] }> {
+  const node = scene.nodes.find((n) => n.id === targetId);
+  if (!node || node.kind !== "text2d") throw new DwError("INVALID_MOTION_TARGET", `'${targetId}' is not a text node.`);
+  if (!TEXT_MOTIONS.has(preset)) {
+    throw new DwError("INVALID_MOTION_TARGET", `Motion '${preset}' does not apply to text. Text motions: ${[...TEXT_MOTIONS].join(", ")}.`);
+  }
+  const [x, y] = node.anchor;
+  const t0 = start, t1 = start + duration;
+  const ez = (fallback: string) => easing ?? fallback;
+  const fadeIn: Kf[] = [{ t: t0, value: 0, easing: "easeOutQuad" }, { t: r6(t0 + duration * 0.7), value: node.opacity }];
+  switch (preset) {
+    case "fade-in":
+      return [{ property: "opacity", keyframes: [{ t: t0, value: 0, easing: ez("easeOutQuad") }, { t: t1, value: node.opacity }] }];
+    case "fade-out":
+      return [{ property: "opacity", keyframes: [{ t: t0, value: node.opacity, easing: ez("easeInQuad") }, { t: t1, value: 0 }] }];
+    case "rise":
+    case "drop-in": {
+      const d = (amount ?? 0.04) * (preset === "rise" ? 1 : -1);
+      return [
+        { property: "anchor", keyframes: [{ t: t0, value: [r6(x), r6(y + d)] as never, easing: ez("easeOutCubic") }, { t: t1, value: [x, y] as never }] },
+        { property: "opacity", keyframes: fadeIn },
+      ];
+    }
+    default: {
+      const side = preset.endsWith("left") ? -1 : 1;
+      const off: [number, number] = [r6(x + side * (amount ?? 0.25)), y];
+      const entering = preset.startsWith("enter");
+      return [
+        { property: "anchor", keyframes: entering ? [{ t: t0, value: off as never, easing: ez("easeOutCubic") }, { t: t1, value: [x, y] as never }] : [{ t: t0, value: [x, y] as never, easing: ez("easeInCubic") }, { t: t1, value: off as never }] },
+        { property: "opacity", keyframes: entering ? fadeIn : [{ t: t0, value: node.opacity, easing: "easeInQuad" }, { t: t1, value: 0 }] },
+      ];
+    }
+  }
+}
+
 function cameraKeyframes(scene: Scene, preset: string, start: number, duration: number, amount: number | undefined, easing: string | undefined): Array<{ property: string; keyframes: Kf[]; interpolation?: "linear" | "spline" }> {
   const c = scene.camera;
   const t0 = start, t1 = start + duration;
@@ -237,6 +275,18 @@ export function applyMotion(scene: Scene, opts: MotionOptions, devices: DeviceRe
       animated.push({ target: "camera", property: tr.property, from: start, to: start + duration });
     }
     latest = start + duration;
+  } else if (opts.target === "texts" || (opts.target && s.nodes.find((n) => n.id === opts.target)?.kind === "text2d")) {
+    const ids = opts.target === "texts" ? s.nodes.filter((n) => n.kind === "text2d").map((n) => n.id) : [opts.target!];
+    if (ids.length === 0) throw new DwError("NOTHING_TO_ANIMATE", "There are no text nodes.");
+    const stagger = opts.stagger ?? (ids.length > 1 ? 0.15 : 0);
+    ids.forEach((id, k) => {
+      const st = start + stagger * k;
+      for (const tr of textKeyframes(s, opts.preset, id, st, duration, opts.amount, opts.easing)) {
+        s = setTrack(s, { target: id, property: tr.property, keyframes: tr.keyframes as never });
+        animated.push({ target: id, property: tr.property, from: st, to: st + duration });
+      }
+      latest = Math.max(latest, st + duration);
+    });
   } else {
     let targets: string[];
     if (opts.target === "camera") throw new DwError("INVALID_MOTION_TARGET", `'${opts.preset}' animates devices, not the camera.`);

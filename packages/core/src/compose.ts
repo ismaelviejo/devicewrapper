@@ -90,6 +90,7 @@ export const ComposeBrief = z
         z.object({
           content: z.string().max(2000),
           position: z.enum(Object.keys(TEXT_POSITIONS) as [TextPosition, ...TextPosition[]]).default("top"),
+          role: z.enum(["headline", "subtitle", "caption"]).optional().describe("Default: headline for the first text at a position, subtitle for the next ones."),
           size: z.number().positive().optional().describe("Pixels at the canvas size. Default scales with the canvas."),
           weight: z.number().int().min(100).max(900).optional(),
           color: z.string().optional(),
@@ -189,18 +190,40 @@ export async function composeScene(ws: Workspace, devices: DeviceRegistry, input
   // Text
   const texts = brief.text ?? [];
   const shortSide = Math.min(s.canvas.width, s.canvas.height);
+  // Several texts at one position stack (headline, then subtitle below it; bottom texts stack upward).
+  const portraitCanvas = s.canvas.height > s.canvas.width;
+  const ROLE = {
+    headline: { size: portraitCanvas ? 0.085 : 0.066, weight: 700 },
+    subtitle: { size: portraitCanvas ? 0.05 : 0.04, weight: 500 },
+    caption: { size: portraitCanvas ? 0.032 : 0.026, weight: 500 },
+  } as const;
+  const stackOffset = new Map<TextPosition, number>();
+  const seenAt = new Map<TextPosition, number>();
   for (const t of texts) {
     const pos = TEXT_POSITIONS[t.position];
+    const index = seenAt.get(t.position) ?? 0;
+    seenAt.set(t.position, index + 1);
+    const role = t.role ?? (index === 0 ? (t.position.startsWith("bottom") ? "caption" : "headline") : "subtitle");
+    const size = t.size ?? Math.round(shortSide * ROLE[role].size);
+    const lines = t.content.split("\n").length;
+    const blockH = (size * 1.15 * lines) / s.canvas.height;
+    const gap = (size * 0.45) / s.canvas.height;
+    const offset = stackOffset.get(t.position) ?? 0;
+    const up = t.position.startsWith("bottom") ? -1 : 1;
+    // First block centers on the anchor; following blocks start below (or above) the previous one.
+    const anchorY = pos.anchor[1] + up * (offset === 0 ? 0 : offset + blockH / 2);
+    stackOffset.set(t.position, (offset === 0 ? blockH / 2 : offset + blockH) + gap);
+    const isSub = role !== "headline";
     s = addNode(
       s,
       {
         kind: "text2d",
         content: t.content,
-        anchor: pos.anchor,
+        anchor: [pos.anchor[0], Math.round(anchorY * 10000) / 10000],
         align: pos.align,
-        size: t.size ?? Math.round(shortSide * (t.position.startsWith("top") ? (s.canvas.height > s.canvas.width ? 0.085 : 0.066) : 0.045)),
-        weight: t.weight ?? 700,
-        color: t.color ?? style.textColor,
+        size,
+        weight: t.weight ?? ROLE[role].weight,
+        color: t.color ?? (isSub ? style.textColor + "b3" : style.textColor),
         ...(t.font ? { font: t.font } : {}),
         maxWidth: 0.86,
       },
@@ -212,12 +235,14 @@ export async function composeScene(ws: Workspace, devices: DeviceRegistry, input
 
   // Camera: frame the devices, leaving room for text.
   const cam = LAYOUT_CAMERA[layout];
-  const hasTop = texts.some((t) => t.position.startsWith("top"));
-  const hasBottom = texts.some((t) => t.position.startsWith("bottom"));
+  const topCount = texts.filter((t) => t.position.startsWith("top")).length;
+  const bottomCount = texts.filter((t) => t.position.startsWith("bottom")).length;
+  const hasTop = topCount > 0;
+  const hasBottom = bottomCount > 0;
   const portrait = s.canvas.height > s.canvas.width;
-  const room = portrait ? 0.07 : 0.1;
-  const shift: [number, number] = brief.camera?.shift ?? [0, (hasTop ? room : 0) - (hasBottom ? room : 0)];
-  const padding = brief.camera?.padding ?? cam.padding + (hasTop ? 0.2 : 0) + (hasBottom ? 0.2 : 0);
+  const room = (n: number) => (n === 0 ? 0 : (portrait ? 0.07 : 0.1) + (n - 1) * 0.03);
+  const shift: [number, number] = brief.camera?.shift ?? [0, room(topCount) - room(bottomCount)];
+  const padding = brief.camera?.padding ?? cam.padding + (hasTop ? 0.2 + (topCount - 1) * 0.08 : 0) + (hasBottom ? 0.2 + (bottomCount - 1) * 0.08 : 0);
   s = setCamera(
     s,
     {

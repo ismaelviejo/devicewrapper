@@ -77,6 +77,7 @@ program
   .option("--width <px>", "Output width", (v) => parseInt(v, 10))
   .option("--height <px>", "Output height", (v) => parseInt(v, 10))
   .option("--locale <code>", "Locale for text variables")
+  .option("--locales <codes>", "Render once per locale, e.g. en,es,ja (adds -<locale> to the output name, or use {locale} in it)")
   .option("--supersample <n>", "Supersampling factor 1-4", (v) => parseInt(v, 10))
   .option("--transparent", "Transparent background")
   .option("--quality <n>", "JPEG/WebP/video quality 1-100", (v) => parseInt(v, 10))

@@ -30,15 +30,23 @@ export async function renderCommand(engine: Engine, target: string, opts: Record
     sceneOverride = parseScene(migrateScene(JSON.parse(readFileSync(engine.ws.resolveRead(target, "Scene file"), "utf8"))));
     sceneId = sceneOverride.id;
   }
-  const req: RenderRequest = { sceneId, format, output };
-  if (typeof opts.time === "number") req.time = opts.time;
-  if (typeof opts.width === "number") req.width = opts.width;
-  if (typeof opts.height === "number") req.height = opts.height;
-  if (typeof opts.locale === "string") req.locale = opts.locale;
-  if (typeof opts.supersample === "number") req.supersample = opts.supersample;
-  if (typeof opts.quality === "number") req.quality = opts.quality;
-  if (opts.transparent) req.transparent = true;
-  const job = engine.jobs.create(req, sceneOverride);
+  const locales = typeof opts.locales === "string" ? opts.locales.split(",").map((l) => l.trim()).filter(Boolean) : [typeof opts.locale === "string" ? opts.locale : undefined];
+  for (const locale of locales) {
+    let out = output;
+    if (locale && locales.length > 1) out = output.includes("{locale}") ? output.replaceAll("{locale}", locale) : output.replace(/(\.[a-z0-9]+)$/i, `-${locale}$1`);
+    const req: RenderRequest = { sceneId, format, output: out };
+    if (typeof opts.time === "number") req.time = opts.time;
+    if (typeof opts.width === "number") req.width = opts.width;
+    if (typeof opts.height === "number") req.height = opts.height;
+    if (locale) req.locale = locale;
+    if (typeof opts.supersample === "number") req.supersample = opts.supersample;
+    if (typeof opts.quality === "number") req.quality = opts.quality;
+    if (opts.transparent) req.transparent = true;
+    await runJob(engine, engine.jobs.create(req, sceneOverride));
+  }
+}
+
+async function runJob(engine: Engine, job: ReturnType<Engine["jobs"]["create"]>): Promise<void> {
   for (const w of job.warnings) process.stderr.write(`warning: ${w.message}\n`);
   let last = -1;
   for (;;) {
