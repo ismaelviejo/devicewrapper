@@ -92,6 +92,13 @@ export interface RenderFrameOptions {
   frameIndex: number;
   /** Background, sized for this render (image URLs are prepared at the buffer size). */
   background: PageBackground;
+  /** Per-frame screen images for video screens: node ID -> frame URL. */
+  screenFrames?: Record<string, string>;
+  /** 'png' returns base64 PNG at buffer size; 'rgba' downsamples to outWidth x outHeight and POSTs raw RGBA to uploadUrl. */
+  output: "png" | "rgba";
+  outWidth?: number;
+  outHeight?: number;
+  uploadUrl?: string;
 }
 
 export interface PageLimits {

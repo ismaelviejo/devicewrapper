@@ -50,9 +50,33 @@ Choices made while building, with the reason for each. Where the implementation 
 
 **`render_preview` returns the PNG inline** as MCP image content (plus the saved path), so the agent can look at its work and iterate.
 
-### Known limitations after Phase 2
+## Phase 3: video
 
-- Video (mp4/webm/mov), video screens and video backgrounds are Phase 3. Validation warns `NOT_RENDERED` and render refuses video formats with a clear message.
-- Bloom and depth of field are accepted in the scene format but not drawn yet; validation warns.
-- Device models: `phone-modern`, `phone-classic`, `tablet`. Laptop, monitor and watch are Phase 4.
-- Deterministic mode is CPU-bound: expect ~4–6 s per 1080p still with 2× supersampling on a small machine, and ~12 s for the first render while Chromium starts.
+**Frames go straight from the page to FFmpeg as raw RGBA.** For video, the page downsamples the supersampled frame in a 2D canvas and POSTs raw pixels to Node, which pipes them into FFmpeg's stdin with backpressure. Nothing is buffered beyond two frames, and nothing is PNG-encoded per frame. Stills still use the PNG + Lanczos path for best quality.
+
+**The page is served from a loopback HTTP server, not DevTools-protocol interception.** Route interception base64-encodes every body over CDP; moving 8 MB frames that way cost ~1 s each. The server binds 127.0.0.1 on a random port behind a random secret path, and Chromium is launched with `--host-resolver-rules` so the page can't resolve any other host. *Replaces the Phase 2 approach.*
+
+**Uploads are pipelined**: frame N+1 starts drawing while frame N uploads and encodes. Frames reach the encoder strictly in order.
+
+**Video screens and video backgrounds are pre-decoded once** by FFmpeg into JPEG sequences at the scene fps, already fitted (cover/contain/fill, focus, crop, rotation) to the screen's resolution (capped at 1600 px). They're cached by content hash under `.devicewrapper/tmp/clips/` and reused across renders and previews. Each timeline frame maps to a clip frame (`offset`, `loop`), so screen video is frame-exact and deterministic, unlike seeking a `<video>` element.
+
+**Encoders**: MP4 = H.264 High, yuv420p, BT.709, CRF from `quality`, faststart. WebM = VP9 (alpha via `yuva420p` when transparent). MOV = ProRes 4444 (`yuva444p10le` with alpha). All invoked with argument arrays; codec settings come from fixed tables, never from user input.
+
+**Formats that can't hold alpha render opaque.** A scene with a transparent background rendered to MP4 or JPEG renders on black/white with a `NO_ALPHA` warning. Explicitly asking for `transparent: true` with MP4 is an error that names the formats that work.
+
+**Performance fixes found while measuring** (1080p, 2 CPU cores, CPU rendering):
+- Soft-shadow blur dominated frame time (~6 s/frame). Shadow-map size now scales with softness, so the same visual blur costs up to 16× less: 6.5 s → 1.3 s/frame at 640×360.
+- The 2D compositing canvas is CPU-backed (`willReadFrequently`), since every frame is read back: 4.3 s → 2.7 s at 1080p.
+- Loopback HTTP instead of CDP for frame transfer: 2.7 s → 1.9 s.
+- Net: about 1.8 s per 1080p frame at 1× supersampling, about 0.9 s at 640×360 with 2×. A 5 s, 30 fps 1080p clip takes about 4–5 minutes on this machine; a desktop CPU with more cores or `DEVICEWRAPPER_RENDER_MODE=fast` will be faster.
+
+**Gradients and the vignette are computed per pixel in JS** with a fixed, position-hashed dither, instead of Canvas2D gradients. Skia dithered gradients differently on the first draw than on later ones (max 1 level, but byte-identical output broke). The replacement is exact, deterministic, and bands less. Layers are cached per size, so video frames reuse them.
+
+**MCP `wait` is capped at 50 s.** MCP clients time out a request after about 60 s, which a `wait: 600` in testing hit. Tool descriptions tell agents to poll `get_render_job { wait: 45 }` for videos and to draft small first.
+
+### Known limitations after Phase 3
+
+- Bloom and depth of field are accepted in the scene format but not drawn yet; validation warns `NOT_RENDERED`.
+- Device models: `phone-modern`, `phone-classic`, `tablet`. Laptop, monitor and watch are Phase 4, along with layouts, motion presets, templates and `compose_scene`.
+- Video renders on one page at a time; parallel frame rendering across pages would help on many-core machines.
+- The first render after the server starts takes about 12–20 s (Chromium start, shader compile, texture upload).

@@ -47,6 +47,8 @@ export const Background = z
       asset: Id.describe("Asset ID of an imported video."),
       fit: FitMode.default("cover"),
       loop: z.boolean().default(true),
+      offset: z.number().min(0).default(0).describe("Seconds into the clip shown at timeline time 0."),
+      color: Color.default("#000000").describe("Fill color visible around a 'contain' video."),
     }),
     z.object({ type: z.literal("transparent") }),
   ])
@@ -202,7 +204,12 @@ export type Asset = z.infer<typeof Asset>;
 
 export const ScreenSource = z.discriminatedUnion("type", [
   z.object({ type: z.literal("image"), asset: Id.describe("Asset ID of an imported PNG/JPEG/WebP/SVG.") }),
-  z.object({ type: z.literal("video"), asset: Id.describe("Asset ID of an imported video.") }),
+  z.object({
+    type: z.literal("video"),
+    asset: Id.describe("Asset ID of an imported video."),
+    loop: z.boolean().default(true).describe("Loop the clip when the timeline is longer than it."),
+    offset: z.number().min(0).default(0).describe("Seconds into the clip shown at timeline time 0."),
+  }),
   z.object({ type: z.literal("color"), color: Color }),
 ]);
 export type ScreenSource = z.infer<typeof ScreenSource>;

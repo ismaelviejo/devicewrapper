@@ -11,6 +11,7 @@ import type { DeviceDefinition, Light, Material } from "@devicewrapper/schema";
 import type { LoadPayload, PageApi, PageBackground, PageDevice, PageLimits, PageNode, PageText, RenderFrameOptions } from "../src/protocol.js";
 
 const DEG = Math.PI / 180;
+const DEBUG_TIMING = new URLSearchParams(location.search).has("debug");
 
 /* ------------------------------------------------------------ renderer */
 
@@ -32,7 +33,7 @@ renderer.shadowMap.type = THREE.VSMShadowMap;
 renderer.setClearColor(0x000000, 0);
 
 const composite = document.createElement("canvas");
-const ctx2d = composite.getContext("2d", { alpha: true, willReadFrequently: false })!;
+const ctx2d = composite.getContext("2d", { alpha: true, willReadFrequently: true })!;
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 const envCache = new Map<string, THREE.Texture>();
@@ -173,6 +174,21 @@ async function loadBitmap(url: string): Promise<ImageBitmap> {
     bitmapCache.delete(first);
   }
   return b;
+}
+
+/** Per-node video frame textures: replaced (and the old one freed) on every frame change. */
+const videoTextures = new Map<string, { url: string; tex: THREE.Texture }>();
+async function loadFrameTexture(url: string): Promise<THREE.Texture> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Frame ${url}: HTTP ${res.status}`);
+  const bitmap = await createImageBitmap(await res.blob(), { imageOrientation: "flipY", premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  const t = new THREE.Texture(bitmap as unknown as HTMLImageElement);
+  t.flipY = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.needsUpdate = true;
+  return t;
 }
 
 /* --------------------------------------------------------------- devices */
@@ -394,7 +410,17 @@ function disposeBuilt(b: Built): void {
   for (const { light } of b.lights.values()) (light as THREE.DirectionalLight).shadow?.dispose?.();
 }
 
-/** Maps the 0..20 'softness' scale to a VSM blur radius in shadow-map texels. */
+/**
+ * Soft shadows: the visible blur width is what matters, not the map resolution. Softer shadows use a
+ * smaller shadow map with a proportionally smaller blur radius; the blur (the expensive part on CPU
+ * rendering) then costs up to ~16x less for the same look.
+ */
+function shadowMapFor(softness: number, requested: number): number {
+  const ideal = (2048 * 24) / Math.max(1, softness * 12);
+  let size = 256;
+  while (size < ideal && size < requested) size *= 2;
+  return Math.min(requested, size);
+}
 function softRadius(softness: number, mapSize: number): number {
   return Math.max(1, softness * 12 * (mapSize / 2048));
 }
@@ -408,11 +434,12 @@ function makeLight(spec: Light): { light: THREE.Light; target?: THREE.Object3D }
     case "directional": {
       const l = new THREE.DirectionalLight(color(spec.color), spec.intensity);
       l.castShadow = spec.castShadow;
-      l.shadow.mapSize.set(spec.shadow.mapSize, spec.shadow.mapSize);
+      const map = shadowMapFor(spec.shadow.softness, spec.shadow.mapSize);
+      l.shadow.mapSize.set(map, map);
       l.shadow.bias = spec.shadow.bias;
       l.shadow.normalBias = 0.0004;
-      l.shadow.radius = softRadius(spec.shadow.softness, spec.shadow.mapSize);
-      l.shadow.blurSamples = 25;
+      l.shadow.radius = softRadius(spec.shadow.softness, map);
+      l.shadow.blurSamples = 16;
       const target = new THREE.Object3D();
       l.target = target;
       return { light: l, target };
@@ -420,20 +447,23 @@ function makeLight(spec: Light): { light: THREE.Light; target?: THREE.Object3D }
     case "point": {
       const l = new THREE.PointLight(color(spec.color), spec.intensity, spec.distance, spec.decay);
       l.castShadow = spec.castShadow;
-      l.shadow.mapSize.set(spec.shadow.mapSize, spec.shadow.mapSize);
+      const map = shadowMapFor(spec.shadow.softness, spec.shadow.mapSize);
+      l.shadow.mapSize.set(map, map);
       l.shadow.bias = spec.shadow.bias;
-      l.shadow.radius = softRadius(spec.shadow.softness, spec.shadow.mapSize);
+      l.shadow.radius = softRadius(spec.shadow.softness, map);
+      l.shadow.blurSamples = 16;
       l.shadow.camera.near = 0.01;
       return { light: l };
     }
     case "spot": {
       const l = new THREE.SpotLight(color(spec.color), spec.intensity, spec.distance, spec.angle * DEG, spec.penumbra, spec.decay);
       l.castShadow = spec.castShadow;
-      l.shadow.mapSize.set(spec.shadow.mapSize, spec.shadow.mapSize);
+      const map = shadowMapFor(spec.shadow.softness, spec.shadow.mapSize);
+      l.shadow.mapSize.set(map, map);
       l.shadow.bias = spec.shadow.bias;
       l.shadow.normalBias = 0.0004;
-      l.shadow.radius = softRadius(spec.shadow.softness, spec.shadow.mapSize);
-      l.shadow.blurSamples = 25;
+      l.shadow.radius = softRadius(spec.shadow.softness, map);
+      l.shadow.blurSamples = 16;
       l.shadow.camera.near = 0.05;
       const target = new THREE.Object3D();
       l.target = target;
@@ -508,6 +538,11 @@ async function load(payload: LoadPayload): Promise<void> {
   }
 
   built = { key: payload.key, scene, camera, objects, screens, lights, texts, payload, fontsReady: loadFonts(payload) };
+  for (const v of videoTextures.values()) {
+    v.tex.dispose();
+    (v.tex.image as ImageBitmap | undefined)?.close?.();
+  }
+  videoTextures.clear();
   // Free textures from previous scenes that this scene doesn't use.
   const used = new Set(payload.nodes.flatMap((n) => (n.kind === "device" && n.screenUrl ? [n.screenUrl] : [])));
   for (const [url, tex] of textureCache) {
@@ -618,6 +653,80 @@ function applyCamera(b: Built, f: FrameState["camera"], aspect: number): void {
 
 /* ----------------------------------------------------------- 2D layers */
 
+/* Gradients and the vignette are computed per pixel in plain JS with a fixed, position-hashed dither.
+ * Canvas gradients are dithered by Skia in a way that differs between the first and later draws,
+ * which broke byte-identical output. This is exact, deterministic, and bands less. */
+
+function srgbBytes(hex: string): [number, number, number, number] {
+  const h = hex.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), h.length === 8 ? parseInt(h.slice(6, 8), 16) : 255];
+}
+
+/** Deterministic per-pixel dither in [-0.5, 0.5). */
+function dither(x: number, y: number): number {
+  let h = Math.imul(x, 0x27d4eb2d) ^ Math.imul(y, 0x165667b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h ^= h >>> 13;
+  return (h >>> 8) / 16777216 - 0.5;
+}
+
+const layerCache = new Map<string, HTMLCanvasElement>();
+function cachedLayer(key: string, w: number, h: number, fill: (data: Uint8ClampedArray) => void): HTMLCanvasElement {
+  const k = `${key}|${w}x${h}`;
+  let c = layerCache.get(k);
+  if (c) return c;
+  c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const cx = c.getContext("2d", { willReadFrequently: true })!;
+  const img = cx.createImageData(w, h);
+  fill(img.data);
+  cx.putImageData(img, 0, 0);
+  layerCache.set(k, c);
+  if (layerCache.size > 6) layerCache.delete(layerCache.keys().next().value!);
+  return c;
+}
+
+function gradientLayer(bg: Extract<PageBackground, { type: "gradient" }>, w: number, h: number): HTMLCanvasElement {
+  const stops = [...bg.stops].sort((a, b) => a.offset - b.offset).map((s) => ({ o: s.offset, c: srgbBytes(s.color) }));
+  return cachedLayer(JSON.stringify(bg), w, h, (data) => {
+    let dx = 0, dy = 0, x0 = 0, y0 = 0, inv = 0, cx = 0, cy = 0, r = 1;
+    if (bg.kind === "linear") {
+      const a = bg.angle * DEG;
+      const ux = Math.sin(a), uy = -Math.cos(a);
+      const half = (Math.abs(w * ux) + Math.abs(h * uy)) / 2;
+      x0 = w / 2 - ux * half;
+      y0 = h / 2 - uy * half;
+      dx = ux;
+      dy = uy;
+      inv = 1 / (2 * half || 1);
+    } else {
+      cx = bg.center[0] * w;
+      cy = bg.center[1] * h;
+      r = bg.radius * Math.hypot(w, h) || 1;
+    }
+    const last = stops.length - 1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const px = x + 0.5, py = y + 0.5;
+        let t = bg.kind === "linear" ? ((px - x0) * dx + (py - y0) * dy) * inv : Math.hypot(px - cx, py - cy) / r;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        let i = 0;
+        while (i < last && t > stops[i + 1]!.o) i++;
+        const a = stops[i]!, b = stops[Math.min(i + 1, last)]!;
+        const span = b.o - a.o;
+        const u = span > 0 ? Math.min(1, Math.max(0, (t - a.o) / span)) : t >= b.o ? 1 : 0;
+        const d = dither(x, y);
+        const o = (y * w + x) * 4;
+        for (let k = 0; k < 4; k++) {
+          const v = a.c[k]! + (b.c[k]! - a.c[k]!) * u + (k < 3 ? d : 0);
+          data[o + k] = v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+        }
+      }
+    }
+  });
+}
+
 async function drawBackground(bg: PageBackground, w: number, h: number): Promise<void> {
   switch (bg.type) {
     case "transparent":
@@ -626,22 +735,9 @@ async function drawBackground(bg: PageBackground, w: number, h: number): Promise
       ctx2d.fillStyle = bg.color;
       ctx2d.fillRect(0, 0, w, h);
       return;
-    case "gradient": {
-      let grad: CanvasGradient;
-      if (bg.kind === "linear") {
-        const a = bg.angle * DEG;
-        const dx = Math.sin(a), dy = -Math.cos(a);
-        const half = (Math.abs(w * dx) + Math.abs(h * dy)) / 2;
-        grad = ctx2d.createLinearGradient(w / 2 - dx * half, h / 2 - dy * half, w / 2 + dx * half, h / 2 + dy * half);
-      } else {
-        const cx = bg.center[0] * w, cy = bg.center[1] * h;
-        grad = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, bg.radius * Math.hypot(w, h));
-      }
-      for (const s of [...bg.stops].sort((x, y) => x.offset - y.offset)) grad.addColorStop(s.offset, s.color);
-      ctx2d.fillStyle = grad;
-      ctx2d.fillRect(0, 0, w, h);
+    case "gradient":
+      ctx2d.drawImage(gradientLayer(bg, w, h), 0, 0);
       return;
-    }
     case "image": {
       const img = await loadBitmap(bg.url);
       ctx2d.drawImage(img, 0, 0, w, h);
@@ -651,14 +747,22 @@ async function drawBackground(bg: PageBackground, w: number, h: number): Promise
 }
 
 function drawVignette(strength: number, hex: string, w: number, h: number): void {
-  const diag = Math.hypot(w, h) / 2;
-  const g = ctx2d.createRadialGradient(w / 2, h / 2, diag * 0.35, w / 2, h / 2, diag);
-  const c = new THREE.Color(hex.slice(0, 7)).convertLinearToSRGB();
-  const rgb = `${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}`;
-  g.addColorStop(0, `rgba(${rgb}, 0)`);
-  g.addColorStop(1, `rgba(${rgb}, ${Math.min(1, strength)})`);
-  ctx2d.fillStyle = g;
-  ctx2d.fillRect(0, 0, w, h);
+  const [r, g, b] = srgbBytes(hex);
+  const layer = cachedLayer(`vignette|${strength}|${hex}`, w, h, (data) => {
+    const cx = w / 2, cy = h / 2, diag = Math.hypot(w, h) / 2, inner = diag * 0.35;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const t = Math.min(1, Math.max(0, (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) - inner) / (diag - inner)));
+        const a = Math.min(1, strength) * t * t * (3 - 2 * t) * 255 + dither(x, y);
+        const o = (y * w + x) * 4;
+        data[o] = r;
+        data[o + 1] = g;
+        data[o + 2] = b;
+        data[o + 3] = a < 0 ? 0 : a > 255 ? 255 : Math.round(a);
+      }
+    }
+  });
+  ctx2d.drawImage(layer, 0, 0);
 }
 
 function mulberry32(seed: number): () => number {
@@ -739,12 +843,29 @@ function drawText(t: PageText, f: NodeFrame, w: number, h: number, scale: number
 
 async function render(frame: FrameState, opts: RenderFrameOptions): Promise<string> {
   if (!built) throw new Error("render() before load()");
+  const T: Array<[string, number]> = [["start", performance.now()]];
+  const mark = (n: string) => T.push([n, performance.now()]);
   const b = built;
   const { width: w, height: h } = opts;
   if (glCanvas.width !== w || glCanvas.height !== h) renderer.setSize(w, h, false);
   for (const [id, obj] of b.objects) {
     const f = frame.nodes[id];
     if (f) applyNode(obj, f);
+  }
+  for (const [id, url] of Object.entries(opts.screenFrames ?? {})) {
+    const mats = b.screens.get(id);
+    if (!mats) continue;
+    const cur = videoTextures.get(id);
+    if (cur?.url === url) continue;
+    const tex = await loadFrameTexture(url);
+    mats.screen.map = tex;
+    mats.screen.userData.baseColor = new THREE.Color(0xffffff);
+    mats.screen.needsUpdate = !cur;
+    if (cur) {
+      cur.tex.dispose();
+      (cur.tex.image as ImageBitmap | undefined)?.close?.();
+    }
+    videoTextures.set(id, { url, tex });
   }
   for (const [id, mats] of b.screens) {
     const f = frame.nodes[id];
@@ -758,17 +879,22 @@ async function render(frame: FrameState, opts: RenderFrameOptions): Promise<stri
     const f = frame.lights[id];
     if (f) applyLight(entry, f);
   }
+  mark("apply");
   fitShadows(b);
+  mark("fitShadows");
   applyCamera(b, frame.camera, w / h);
   renderer.setClearColor(0x000000, 0);
   renderer.clear();
   renderer.render(b.scene, b.camera);
+  mark("webgl");
 
   composite.width = w;
   composite.height = h;
   ctx2d.clearRect(0, 0, w, h);
   if (!opts.transparent && opts.background) await drawBackground(opts.background, w, h);
+  mark("bg");
   ctx2d.drawImage(glCanvas, 0, 0);
+  mark("drawGL");
   for (const e of b.payload.effects) {
     if (e.type === "vignette" && !opts.transparent) drawVignette(e.strength, e.color, w, h);
     if (e.type === "grain") drawGrain(e.amount, b.payload.seed, opts.frameIndex, w, h, opts.scale);
@@ -780,9 +906,35 @@ async function render(frame: FrameState, opts: RenderFrameOptions): Promise<stri
       if (f) drawText(t, f, w, h, opts.scale);
     }
   }
+  if (opts.output === "rgba") {
+    const ow = opts.outWidth ?? w, oh = opts.outHeight ?? h;
+    let src: HTMLCanvasElement = composite;
+    if (ow !== w || oh !== h) {
+      outCanvas.width = ow;
+      outCanvas.height = oh;
+      const octx = outCanvas.getContext("2d", { alpha: true, willReadFrequently: true })!;
+      octx.clearRect(0, 0, ow, oh);
+      octx.imageSmoothingEnabled = true;
+      octx.imageSmoothingQuality = "high";
+      octx.drawImage(composite, 0, 0, ow, oh);
+      src = outCanvas;
+    }
+    mark("downscale");
+    const data = src.getContext("2d")!.getImageData(0, 0, ow, oh, { colorSpace: "srgb" }).data;
+    mark("readback");
+    // Fire and forget: Node waits for the upload itself, so the next frame can start drawing now.
+    void fetch(opts.uploadUrl!, { method: "POST", body: data, headers: { "content-type": "application/octet-stream" } }).catch((e: Error) =>
+      console.error(`Frame upload failed: ${e.message}`),
+    );
+    mark("upload");
+    if (DEBUG_TIMING) console.debug("timing " + T.slice(1).map(([n, t], i) => `${n}=${Math.round(t - T[i]![1])}`).join(" "));
+    return "";
+  }
   const url = composite.toDataURL("image/png");
   return url.slice(url.indexOf(",") + 1);
 }
+
+const outCanvas = document.createElement("canvas");
 
 function limits(): PageLimits {
   const gl = renderer.getContext();

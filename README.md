@@ -1,14 +1,14 @@
 # devicewrapper
 
-Headless 3D device mockups for AI agents. An MCP server that lets Claude Code (or any MCP client) build scenes with phones and tablets, put your app screenshots on their screens, light and frame them, and render stills. No UI.
+Headless 3D device mockups for AI agents. An MCP server that lets Claude Code (or any MCP client) build scenes with phones and tablets, put your app screenshots or screen recordings on their screens, light, frame and animate them, and render stills and videos. No UI.
 
 <p align="center"><img src="tests/golden/reference/dark-trio-en.png" width="480" alt="Three phones rendered by devicewrapper"></p>
 
-> **Status:** Phases 1–2 of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, and still rendering (PNG/JPEG/WebP). Video is Phase 3. See [DECISIONS.md](DECISIONS.md) for design choices and current limitations.
+> **Status:** Phases 1–3 of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, stills (PNG/JPEG/WebP) and video (MP4, WebM, ProRes MOV, with transparency; screen recordings on device screens). Next is Phase 4: more devices, layouts, motion presets, templates. See [DECISIONS.md](DECISIONS.md) for design choices and current limitations.
 
 ## Setup
 
-Requires Node 20+ and pnpm. FFmpeg is only needed for video (Phase 3).
+Requires Node 20+, pnpm, and FFmpeg for video.
 
 ```bash
 git clone https://github.com/ismaelviejo/devicewrapper.git
@@ -48,6 +48,8 @@ Then ask Claude things like:
 
 > Put `a.png`, `b.png` and `c.png` on three midnight phones in a slight arc on a dark studio background, add the headline "Train smarter", and render it in English and Spanish.
 
+> Make a 5-second 1080p MP4: a black phone playing `design/onboarding.mp4`, slowly turning while the camera pushes in. Draft it small first.
+
 ## What the agent gets
 
 **Tools (26)**
@@ -71,6 +73,7 @@ Then ask Claude things like:
 devicewrapper mcp                         # MCP server over stdio
 devicewrapper render hero -o hero.png     # scene ID or path/to/scene.json; format from the extension
 devicewrapper render hero -o hero-es.jpg --locale es --width 2560
+devicewrapper render hero -o hero.mp4 --width 1280     # video: .mp4 .webm .mov, progress on stderr
 devicewrapper validate hero
 devicewrapper scenes
 devicewrapper devices

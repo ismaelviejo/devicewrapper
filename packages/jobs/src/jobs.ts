@@ -58,6 +58,9 @@ export interface RenderJob {
   durationMs: number | null;
 }
 
+/** Formats that can store an alpha channel. Others always render opaque. */
+const ALPHA_FORMATS = new Set<OutputFormat>(["png", "webp", "webm", "mov"]);
+
 const EXT: Record<OutputFormat, string> = { png: "png", jpeg: "jpg", webp: "webp", mp4: "mp4", webm: "webm", mov: "mov" };
 
 export function isVideoFormat(f: string): f is VideoFormat {
@@ -213,6 +216,18 @@ export class JobManager {
     if (!(plan.kind === "video" ? backend.capabilities.videoFormats : backend.capabilities.stillFormats).includes(plan.format)) {
       throw new DwError("UNSUPPORTED_FORMAT", `Format '${plan.format}' is not supported by the renderer.`);
     }
+    if (req.transparent === true && !ALPHA_FORMATS.has(plan.format)) {
+      throw new DwError("NO_ALPHA", `Format '${plan.format}' can't store transparency.`, {
+        hint: "Use png or webp for stills, webm (VP9 alpha) or mov (ProRes 4444) for video.",
+      });
+    }
+    if (req.transparent !== true && !ALPHA_FORMATS.has(plan.format) && (scene.render.transparent || scene.background.type === "transparent")) {
+      warnings.push({
+        severity: "warning",
+        code: "NO_ALPHA",
+        message: `The scene has a transparent background, but ${plan.format} can't store alpha; it will render on ${plan.format === "jpeg" ? "white" : "black"}.`,
+      });
+    }
     const job: RenderJob = {
       ...plan,
       jobId: this.newId(),
@@ -250,7 +265,7 @@ export class JobManager {
         resolveAssetPath: (path) => this.engine.ws.resolveRead(path, "Asset"),
       });
       const supersample = request.supersample ?? scene.render.supersample;
-      const transparent = request.transparent ?? (scene.render.transparent || scene.background.type === "transparent");
+      const transparent = ALPHA_FORMATS.has(job.format) && (request.transparent ?? (scene.render.transparent || scene.background.type === "transparent"));
       const quality = request.quality ?? scene.render.quality;
       mkdirSync(dirname(job.outputAbs), { recursive: true });
       if (job.kind === "still") {

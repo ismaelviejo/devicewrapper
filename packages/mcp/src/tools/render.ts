@@ -74,9 +74,10 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
         "Render final output as a background job. Stills: png | jpeg | webp. Video: mp4 (H.264) | webm (VP9) | mov (ProRes 4444, supports alpha).",
         "Size defaults to the scene canvas; pass preset ('1080p', '4k', …) or width/height (aspect is kept if you pass only one).",
         "locales: ['en', 'es', 'fr'] renders one output per language (one job each).",
-        "Returns job IDs immediately. `wait` (seconds) blocks until the jobs finish or the time runs out; stills usually finish in a few seconds.",
+        "Returns job IDs immediately. `wait` (max 50 s) blocks until the jobs finish or the time runs out; stills usually finish in a few seconds.",
+        "Videos take longer (roughly 0.3–1.5 s per frame on CPU rendering): poll get_render_job with wait: 45 until completed. Draft with supersample: 1 and a small width first.",
         "Otherwise poll get_render_job. Output paths are relative to the workspace. Default path: .devicewrapper/output/<sceneId>/<sceneId>[-<locale>].<ext>.",
-        "Example: { sceneId: 'hero', format: 'png', preset: '4k', wait: 60 }",
+        "Example: { sceneId: 'hero', format: 'png', preset: '4k', wait: 45 }",
       ].join("\n"),
       inputSchema: {
         sceneId: SceneId,
@@ -93,7 +94,7 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
         supersample: z.number().int().min(1).max(4).optional().describe("Default: scene render.supersample (2)."),
         quality: z.number().int().min(1).max(100).optional(),
         output: z.string().optional().describe("Output path. With locales, include {locale} in it, e.g. 'out/hero-{locale}.png'."),
-        wait: z.number().min(0).max(600).default(0).describe("Seconds to wait for completion before returning."),
+        wait: z.number().min(0).max(50).default(0).describe("Seconds (max 50) to wait for completion before returning. MCP clients time out at ~60s, so poll get_render_job for longer renders."),
       },
     },
     wrap(async (a) => {
@@ -140,8 +141,8 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
     "get_render_job",
     {
       title: "Get render job",
-      description: "Status of a render job: queued | running | completed | failed | cancelled, with progress %, frames and output path. `wait` (seconds) blocks until it finishes or the time runs out.",
-      inputSchema: { jobId: z.string().min(1), wait: z.number().min(0).max(600).default(0) },
+      description: "Status of a render job: queued | running | completed | failed | cancelled, with progress %, frames and output path. `wait` (max 50 s) blocks until it finishes or the time runs out; call again while it is still running.",
+      inputSchema: { jobId: z.string().min(1), wait: z.number().min(0).max(50).default(0).describe("Seconds (max 50) to block waiting for completion.") },
       annotations: { readOnlyHint: true },
     },
     wrap(async (a) => ok(brief(await engine.jobs.wait(a.jobId, a.wait * 1000)))),

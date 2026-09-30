@@ -142,6 +142,7 @@ export function registerLookTools(server: McpServer, engine: Engine): void {
         "- { type: 'gradient', kind: 'linear', angle: 180, stops: [{ color: '#1a1f3a', offset: 0 }, { color: '#05060a', offset: 1 }] }  (angle 180 = top→bottom)",
         "- { type: 'gradient', kind: 'radial', center: [0.5, 0.45], radius: 0.8, stops: [...] }",
         "- { type: 'image', asset: 'bg' | 'path/to/bg.jpg', fit: 'cover' }  (a file path is imported automatically)",
+        "- { type: 'video', asset: 'path/to/loop.mp4', fit: 'cover', loop: true }  (plays in sync with the timeline)",
         "- { type: 'transparent' }  (PNG/WebP stills with alpha; pair with a shadowCatcher floor for a soft shadow)",
         "Backgrounds are not lit and don't receive shadows. For a visible floor or wall, add a plane with add_node.",
       ].join("\n"),

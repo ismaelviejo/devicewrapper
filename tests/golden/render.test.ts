@@ -24,6 +24,8 @@ import {
 import { Engine } from "@devicewrapper/jobs";
 import { createMcpServer } from "@devicewrapper/mcp";
 import { ThreeChromiumRenderer } from "@devicewrapper/renderer";
+import { execFileSync } from "node:child_process";
+import { setTrack } from "@devicewrapper/core";
 import { tmpWorkspace, writeScreenshot } from "../helpers.js";
 
 /**
@@ -141,6 +143,57 @@ describe("golden renders", () => {
   });
 });
 
+describe("video", () => {
+  const framemd5 = (path: string) => sha256(execFileSync("ffmpeg", ["-v", "error", "-i", path, "-f", "framemd5", "-"]).toString());
+
+  it("renders an animated MP4 deterministically (identical frames on repeat)", async () => {
+    let s = await heroScene();
+    s = { ...s, id: "clip", canvas: { ...s.canvas, width: 160, height: 90, fps: 10, duration: 1 } };
+    s = setTrack(s, { target: "phone", property: "rotation", keyframes: [{ t: 0, value: [0, -30, 0], easing: "easeInOut" }, { t: 1, value: [0, 30, 0] }] });
+    engine.store.save(s);
+    const outs: string[] = [];
+    for (const k of [0, 1]) {
+      const job = engine.jobs.create({ sceneId: "clip", format: "mp4", supersample: 1, output: `renders/clip-${k}.mp4` });
+      const done = await engine.jobs.wait(job.jobId, 170000);
+      expect(done.status, done.error?.message).toBe("completed");
+      expect(done.frames).toEqual({ done: 10, total: 10 });
+      outs.push(join(root, done.output));
+    }
+    expect(framemd5(outs[0]!)).toBe(framemd5(outs[1]!));
+    const probe = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,width,height,nb_frames", "-of", "csv=p=0", outs[0]!]).toString().trim();
+    expect(probe).toBe("h264,160,90,10");
+  });
+
+  it("plays a video on the screen and writes transparent ProRes", async () => {
+    execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=300x640:rate=10:duration=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", join(root, "rec.mp4")]);
+    let s = createScene({ id: "vscreen", lighting: "product", canvas: { width: 120, height: 120, fps: 10, duration: 0.5 } });
+    const r = await ensureAsset(engine.ws, s, "rec.mp4");
+    s = r.scene;
+    s = addNode(s, { kind: "device", model: "phone-modern", screen: { source: { type: "video", asset: r.assetId } } }, engine.devices).scene;
+    s = setBackground(s, { type: "transparent" });
+    s = setCamera(s, { frame: { shot: "front", padding: 0.05 } }, engine.devices);
+    engine.store.save(s);
+    const job = engine.jobs.create({ sceneId: "vscreen", format: "mov", supersample: 1 });
+    const done = await engine.jobs.wait(job.jobId, 170000);
+    expect(done.status, done.error?.message).toBe("completed");
+    const probe = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,pix_fmt,nb_frames", "-of", "csv=p=0", join(root, done.output)]).toString().trim();
+    expect(probe).toMatch(/^prores,yuva444p1[02]le,5$/);
+    // Screen content changes between frames because the clip plays.
+    const a = await render(s, 120, 120, { transparent: true });
+    const s2 = { ...s, render: { ...s.render, time: 0.4 } };
+    const b = await render(s2, 120, 120, { transparent: true });
+    expect(sha256(a)).not.toBe(sha256(b));
+  });
+
+  it("refuses transparent MP4 but renders a transparent-background scene opaque with a warning", async () => {
+    engine.store.save({ ...(await heroScene()), id: "tbg", background: { type: "transparent" }, canvas: { width: 64, height: 64, fps: 5, duration: 0.2 } });
+    expect(() => engine.jobs.create({ sceneId: "tbg", format: "mp4", transparent: true })).toThrow(/transparency/);
+    const job = engine.jobs.create({ sceneId: "tbg", format: "mp4", supersample: 1 });
+    expect(job.warnings.map((w) => w.code)).toContain("NO_ALPHA");
+    expect((await engine.jobs.wait(job.jobId, 60000)).status).toBe("completed");
+  });
+});
+
 describe("MCP render tools with a real renderer", () => {
   it("render_preview returns an inline PNG and render writes the file", async () => {
     const server = createMcpServer(engine);
@@ -155,7 +208,7 @@ describe("MCP render tools with a real renderer", () => {
       const meta = await sharp(Buffer.from(img!.data!, "base64")).metadata();
       expect([meta.width, meta.height]).toEqual([256, 144]);
 
-      const r = await client.callTool({ name: "render", arguments: { sceneId: "hero", format: "webp", width: 400, wait: 120 } });
+      const r = await client.callTool({ name: "render", arguments: { sceneId: "hero", format: "webp", width: 400, wait: 50 } });
       const data = JSON.parse((r.content as Array<{ text: string }>)[0]!.text);
       expect(data.jobs[0].status).toBe("completed");
       const out = await sharp(join(root, data.jobs[0].output)).metadata();

@@ -44,6 +44,15 @@ devicewrapper builds and renders 3D device mockups. Everything is a **scene**: J
 - Floating phone: position y oscillating ±0.004 m with easeInOutSine keyframes.
 - Preview motion by rendering previews at several \`time\` values before a full video render.
 
+## Video
+
+- Formats: mp4 (H.264, most compatible), webm (VP9; supports transparency), mov (ProRes 4444; transparency, for editing).
+- Rendering is CPU-based and deterministic: roughly 1–2 s per 1080p frame, so a 5 s clip at 30 fps takes a few minutes.
+  Draft first: \`render { format: 'mp4', width: 640, supersample: 1 }\`, check it, then render the final size.
+- Poll long renders: \`get_render_job { jobId, wait: 45 }\` until status is completed (tool calls time out after ~60 s).
+- Screen recordings on devices play in sync with the timeline; \`offset\` skips into the clip, \`loop\` repeats it.
+- Transparent video: background { type: 'transparent' } and format webm or mov. mp4 renders a transparent background as black.
+
 ## Localization
 
 - Put {{variables}} in text2d content, set base values with \`set_variables\`, then per-locale values with \`set_variables { locale }\`.
