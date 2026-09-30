@@ -14,6 +14,8 @@ export interface NodeFrame {
   opacity: number;
   screenBrightness?: number;
   screenGlare?: number;
+  /** Laptops: lid angle in degrees; undefined = the model's default. */
+  lidAngle?: number;
   /** text2d only */
   anchor?: Vec2;
   rotation?: number;
@@ -155,6 +157,7 @@ export function baseFrame(scene: Scene): FrameState {
     if (n.kind === "device") {
       f.screenBrightness = n.screen.brightness;
       f.screenGlare = n.screen.glare;
+      if (n.lidAngle !== undefined) f.lidAngle = n.lidAngle;
     }
     nodes[n.id] = f;
   }
@@ -184,6 +187,7 @@ const NODE_FIELD: Record<string, keyof NodeFrame> = {
   visible: "visible",
   "screen.brightness": "screenBrightness",
   "screen.glare": "screenGlare",
+  lidAngle: "lidAngle",
   anchor: "anchor",
   size: "size",
   color: "color",

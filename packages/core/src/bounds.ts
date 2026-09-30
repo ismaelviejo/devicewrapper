@@ -8,18 +8,63 @@ export interface Box3 {
   max: Vec3;
 }
 
-/** Local-space half extents of a device body, including the camera bump. */
-function deviceLocalBox(def: DeviceDefinition): Box3 {
-  const { width, height, depth } = def.body;
-  const bump = def.cameraBump?.depth ?? 0;
-  return { min: [-width / 2, -height / 2, -depth / 2 - bump], max: [width / 2, height / 2, depth / 2] };
+/**
+ * Local-space box of a device, matching the renderer's geometry for each form.
+ * `lidAngle` only matters for laptops (defaults to the model's default).
+ */
+export function deviceLocalBox(def: DeviceDefinition, lidAngle?: number): Box3 {
+  switch (def.form) {
+    case "slab": {
+      const { width, height, depth } = def.body;
+      const bump = def.cameraBump?.depth ?? 0;
+      return { min: [-width / 2, -height / 2, -depth / 2 - bump], max: [width / 2, height / 2, depth / 2] };
+    }
+    case "laptop": {
+      const { width, depth, thickness } = def.base;
+      const a = ((lidAngle ?? def.defaultLidAngle) - 90) * DEG;
+      // Lid hinged at (y = t/2, z = -depth/2), rotated back by (angle - 90).
+      const hy = thickness / 2, hz = -depth / 2;
+      const top: Vec3 = [0, hy + def.lid.height * Math.cos(a), hz - def.lid.height * Math.sin(a)];
+      const back: Vec3 = [0, hy + def.lid.thickness * Math.sin(a), hz - def.lid.thickness * Math.cos(a)];
+      const ys = [-thickness / 2, thickness / 2, top[1], back[1], top[1] + back[1] - hy];
+      const zs = [depth / 2, -depth / 2, top[2], back[2], top[2] + back[2] - hz];
+      return { min: [-width / 2, Math.min(...ys), Math.min(...zs)], max: [width / 2, Math.max(...ys), Math.max(...zs)] };
+    }
+    case "monitor": {
+      const { width, height, depth } = def.body;
+      const st = def.stand;
+      const footBottom = -height / 2 - st.neckHeight - st.footThickness;
+      return {
+        min: [-Math.max(width, st.footWidth) / 2, footBottom, -depth / 2 - 0.01 - Math.max(st.neckDepth, st.footDepth * 0.75)],
+        max: [Math.max(width, st.footWidth) / 2, height / 2, Math.max(depth / 2, st.footDepth * 0.25)],
+      };
+    }
+    case "watch": {
+      const { width, height, depth } = def.body;
+      // Each strap is an arc of length L bending back by angle c (radius L / c).
+      const c = Math.max(def.band.curl * DEG, 1e-3);
+      const R = def.band.length / c;
+      const reachY = c >= Math.PI / 2 ? R : R * Math.sin(c);
+      const reachZ = R * (1 - Math.cos(c));
+      return {
+        min: [-width / 2, -height / 2 - reachY, -depth / 2 - reachZ],
+        max: [width / 2 + def.crown.length, height / 2 + reachY, depth / 2],
+      };
+    }
+  }
+}
+
+/** Overall size [width, height, depth] in meters, e.g. for tool results and layout spacing. */
+export function deviceSize(def: DeviceDefinition, lidAngle?: number): Vec3 {
+  const b = deviceLocalBox(def, lidAngle);
+  return [b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]];
 }
 
 function localBox(node: Node, devices: DeviceRegistry): Box3 | null {
   switch (node.kind) {
     case "device": {
       const def = devices.get(node.model);
-      return def ? deviceLocalBox(def) : null;
+      return def ? deviceLocalBox(def, node.lidAngle) : null;
     }
     case "plane":
       return { min: [-node.size[0] / 2, 0, -node.size[1] / 2], max: [node.size[0] / 2, 0, node.size[1] / 2] };

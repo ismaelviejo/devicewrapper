@@ -1,0 +1,25 @@
+{
+  "name": "hero-laptop",
+  "title": "Hero laptop",
+  "description": "A 14-inch laptop, lid open, on a light studio background. For web apps and SaaS.",
+  "screens": 1,
+  "brief": {
+    "preset": "1080p",
+    "style": "light-studio",
+    "devices": [
+      {
+        "model": "laptop-14",
+        "screen": "{{screen1}}"
+      }
+    ],
+    "layout": "hero",
+    "layoutOptions": {
+      "angle": 12
+    },
+    "camera": {
+      "shot": "hero",
+      "focalLength": 50
+    }
+  },
+  "variables": []
+}

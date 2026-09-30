@@ -56,20 +56,8 @@ export const RenderPatch = patchOf(RenderSettings);
 export const TransformPatch = patchOf(Transform);
 export const ScreenPatch = patchOf(Screen);
 
-export const CANVAS_PRESETS = {
-  "720p": [1280, 720],
-  "1080p": [1920, 1080],
-  "1440p": [2560, 1440],
-  "4k": [3840, 2160],
-  square: [1080, 1080],
-  "square-2k": [2048, 2048],
-  portrait: [1080, 1920],
-  "portrait-4k": [2160, 3840],
-  "app-store-6.9": [1320, 2868],
-  "app-store-ipad": [2064, 2752],
-  "instagram-portrait": [1080, 1350],
-  "og-image": [1200, 630],
-} as const;
+export { CANVAS_PRESETS } from "@devicewrapper/core";
+import { CANVAS_PRESETS } from "@devicewrapper/core";
 export const CanvasPreset = z.enum(Object.keys(CANVAS_PRESETS) as [keyof typeof CANVAS_PRESETS, ...Array<keyof typeof CANVAS_PRESETS>]);
 
 /** New-node inputs: same as the scene schema, but `id` is optional (auto-assigned). */

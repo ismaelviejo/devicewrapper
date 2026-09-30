@@ -1,0 +1,22 @@
+{
+  "name": "desktop-setup",
+  "title": "Desktop setup",
+  "description": "A 27-inch monitor with a phone in front. For desktop apps with mobile companions.",
+  "screens": 2,
+  "brief": {
+    "preset": "1080p",
+    "style": "light-studio",
+    "devices": [
+      {
+        "model": "monitor-27",
+        "screen": "{{screen1}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen2}}"
+      }
+    ],
+    "layout": "showcase"
+  },
+  "variables": []
+}

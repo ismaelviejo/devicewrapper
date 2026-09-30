@@ -40,7 +40,11 @@ describe("MCP surface", () => {
       [
         "add_device",
         "add_node",
+        "apply_layout",
+        "apply_motion",
+        "apply_style",
         "cancel_render_job",
+        "compose_scene",
         "create_scene",
         "delete_scene",
         "duplicate_scene",
@@ -51,6 +55,7 @@ describe("MCP surface", () => {
         "import_scene",
         "list_render_jobs",
         "list_scenes",
+        "list_templates",
         "remove_node",
         "remove_track",
         "render",
@@ -145,6 +150,28 @@ describe("MCP workflow", () => {
     const track = await call("set_track", { sceneId: "s", target: "camera", property: "rotation", keyframes: [{ t: 0, value: [0, 0, 0] }] });
     expect(track.data.error.code).toBe("INVALID_TRACK_PROPERTY");
     expect(track.data.error.message).toContain("fov");
+  });
+
+  it("composes from a template and refines with apply_* tools", async () => {
+    await writeScreenshot(join(root, "a.png"), 118, 256);
+    await writeScreenshot(join(root, "b.png"), 118, 256);
+    const list = await call("list_templates");
+    expect(list.data.templates.map((t: { name: string }) => t.name)).toContain("phone-pair");
+    const missing = await call("compose_scene", { template: "phone-pair" });
+    expect(missing.data.error.code).toBe("MISSING_SCREENS");
+    const c = await call("compose_scene", { template: "phone-pair", screens: ["a.png", "b.png"], style: "dark-studio" });
+    expect(c.isError).toBe(false);
+    expect(c.data.sceneId).toBe("phone-pair");
+    expect(c.data.scene.nodes.map((n: { id: string }) => n.id)).toEqual(["phone", "phone-2", "floor"]);
+    expect((await call("apply_layout", { sceneId: "phone-pair", layout: "stack" })).isError).toBe(false);
+    expect((await call("apply_style", { sceneId: "phone-pair", style: "mint", recolorDevices: true })).data.effects).toEqual([]);
+    const m = await call("apply_motion", { sceneId: "phone-pair", preset: "rise" });
+    expect(m.data.animated.length).toBe(4);
+    const m2 = await call("apply_motion", { sceneId: "phone-pair", preset: "float" });
+    expect(m2.data.wrapped.length).toBe(2);
+    expect((await call("validate_scene", { sceneId: "phone-pair" })).data.valid).toBe(true);
+    const direct = await call("compose_scene", { name: "Direct", devices: [{ model: "watch-45", screen: "a.png" }], style: "sunset", text: [{ content: "Hi" }] });
+    expect(direct.data.sceneId).toBe("direct");
   });
 
   it("reports NOT_IMPLEMENTED for rendering when no renderer is attached", async () => {

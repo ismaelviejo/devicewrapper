@@ -4,7 +4,6 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import sharp from "sharp";
 import {
   DwError,
@@ -17,7 +16,8 @@ import {
   type StillOptions,
   type VideoOptions,
 } from "@devicewrapper/core";
-import type { LoadPayload, PageApi, PageBackground, PageFont, PageLimits, PageNode, RenderFrameOptions } from "./protocol.js";
+import type { LoadPayload, PageBackground, PageFont, PageLimits, PageNode, RenderFrameOptions } from "./protocol.js";
+import { ChromeProcess, defaultChromiumPath, type CdpPage } from "./cdp.js";
 import { prepareBackground, prepareScreenTexture } from "./textures.js";
 import { FrameEncoder, clipFrameIndex, decodeClip, encoderArgs, type DecodeSpec } from "./video.js";
 
@@ -47,7 +47,7 @@ interface Resource {
 }
 
 interface Slot {
-  page: Page;
+  page: CdpPage;
   loadedKey: string | null;
   busy: boolean;
 }
@@ -82,7 +82,7 @@ function interFonts(): Array<{ file: string; unicodeRange: string }> {
 
 function launchArgs(mode: DwConfig["renderMode"]): string[] {
   // The page may only reach our loopback server: every other hostname fails to resolve.
-  const common = ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text", "--hide-scrollbars", "--mute-audio", "--disable-background-timer-throttling", "--disable-renderer-backgrounding"];
+  const common = ["--headless", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1", "--force-color-profile=srgb", "--font-render-hinting=none", "--disable-lcd-text", "--hide-scrollbars", "--mute-audio", "--disable-background-timer-throttling", "--disable-renderer-backgrounding"];
   if (mode === "deterministic") return [...common, "--use-angle=swiftshader", "--use-gl=angle", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
   return [...common, "--enable-gpu", "--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"];
 }
@@ -103,8 +103,7 @@ export interface ChromiumRendererOptions {
 export class ThreeChromiumRenderer implements RenderBackend {
   readonly name = "three-chromium";
   readonly capabilities = CAPABILITIES;
-  private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
+  private browser: ChromeProcess | null = null;
   private server: Server | null = null;
   /** http://127.0.0.1:<port>/<random secret>: only this process knows the secret path. */
   private origin = "";
@@ -151,34 +150,32 @@ export class ThreeChromiumRenderer implements RenderBackend {
     if (!existsSync(PAGE_JS)) {
       throw new DwError("RENDERER_NOT_BUILT", `Renderer page bundle missing at ${PAGE_JS}.`, { hint: "Run `pnpm build`." });
     }
-    try {
-      this.browser = await chromium.launch({
-        headless: true,
-        args: launchArgs(this.opts.config.renderMode),
-        ...(this.opts.config.chromiumPath ? { executablePath: this.opts.config.chromiumPath } : {}),
-      });
-    } catch (e) {
-      const msg = (e as Error).message ?? String(e);
-      throw new DwError("CHROMIUM_MISSING", `Could not start headless Chromium: ${msg.split("\n")[0]}`, {
+    const exe = this.opts.config.chromiumPath ?? defaultChromiumPath();
+    if (!exe || !existsSync(exe)) {
+      throw new DwError("CHROMIUM_MISSING", `Headless Chromium was not found${exe ? ` at ${exe}` : ""}.`, {
         hint: "Run `devicewrapper setup` to download it, or set DEVICEWRAPPER_CHROMIUM_PATH to a Chrome/Chromium executable.",
       });
     }
+    try {
+      this.browser = await ChromeProcess.launch(exe, launchArgs(this.opts.config.renderMode));
+    } catch (e) {
+      throw new DwError("CHROMIUM_START_FAILED", `Could not start headless Chromium (${exe}): ${(e as Error).message}`, {
+        hint: "Run `devicewrapper setup` again, or point DEVICEWRAPPER_CHROMIUM_PATH at a working Chrome/Chromium.",
+      });
+    }
     await this.startServer();
-    this.context = await this.browser.newContext({ viewport: { width: 64, height: 64 }, deviceScaleFactor: 1 });
     this.fonts = interFonts().map((f) => ({ family: "Inter", url: this.register(readFileSync(f.file), "font/woff2"), unicodeRange: f.unicodeRange, weight: "100 900" }));
     const size = Math.max(1, this.opts.poolSize ?? this.opts.config.maxConcurrentRenders);
     for (let i = 0; i < size; i++) this.slots.push(await this.newSlot());
-    this.pageLimits = await this.slots[0]!.page.evaluate(() => (globalThis as unknown as { dw: PageApi }).dw.limits());
+    this.pageLimits = await this.slots[0]!.page.call<PageLimits>("limits", [], 10000);
   }
 
   private async newSlot(): Promise<Slot> {
-    const page = await this.context!.newPage();
-    page.on("console", (m) => {
-      if (this.opts.debug || m.type() === "error") process.stderr.write(`[renderer page] ${m.type()}: ${m.text()}\n`);
+    const page = await this.browser!.newPage((type, text) => {
+      if (this.opts.debug || type === "error") process.stderr.write(`[renderer page] ${type}: ${text}\n`);
     });
-    page.on("pageerror", (e) => process.stderr.write(`[renderer page] error: ${e.message}\n`));
     await page.goto(`${this.origin}/index.html${this.opts.debug ? "?debug" : ""}`);
-    await page.waitForFunction(() => (globalThis as unknown as { dwReady?: boolean }).dwReady === true, undefined, { timeout: 30000 });
+    await page.waitFor("window.dwReady === true", 30000);
     return { page, loadedKey: null, busy: false };
   }
 
@@ -444,30 +441,31 @@ export class ThreeChromiumRenderer implements RenderBackend {
   }
 
   private async replaceSlotPage(slot: Slot): Promise<void> {
-    const old = slot.page;
-    await old.close({ runBeforeUnload: false }).catch(() => undefined);
-    const fresh = await this.newSlot();
-    slot.page = fresh.page;
+    await slot.page.close().catch(() => undefined);
     slot.loadedKey = null;
+    try {
+      slot.page = (await this.newSlot()).page;
+    } catch {
+      // Chromium itself is gone: restart everything on the next render.
+      await this.close();
+    }
   }
 
   private async ensureLoaded(slot: Slot, payload: LoadPayload): Promise<void> {
     if (slot.loadedKey !== payload.key) {
-      await this.withDeadline(slot, "loading the scene", 240_000, () => slot.page.evaluate((p) => (globalThis as unknown as { dw: PageApi }).dw.load(p), payload));
+      await this.withDeadline(slot, "loading the scene", 240_000, () => slot.page.call<void>("load", [payload]));
       slot.loadedKey = payload.key;
     }
   }
 
   private async pageRender(slot: Slot, frame: FrameState, opts: RenderFrameOptions): Promise<string> {
-    return this.withDeadline(slot, `frame at t=${frame.time.toFixed(3)}s`, 180_000, () =>
-      slot.page.evaluate(([f, o]) => (globalThis as unknown as { dw: PageApi }).dw.render(f, o), [frame, opts] as const),
-    );
+    return this.withDeadline(slot, `frame at t=${frame.time.toFixed(3)}s`, 180_000, () => slot.page.call<string>("render", [frame, opts]));
   }
 
   private async recover(slot: Slot, e: unknown): Promise<never> {
     if (e instanceof DwError) throw e;
     const msg = (e as Error).message ?? String(e);
-    if (/Target (page|closed)|crash/i.test(msg)) await this.replaceSlotPage(slot);
+    if (/Chromium|Target|crash|closed/i.test(msg)) await this.replaceSlotPage(slot);
     throw new DwError("RENDER_FAILED", `The renderer failed: ${msg.split("\n")[0]}`, { hint: "Try a smaller size or supersample, or check the scene with validate_scene." });
   }
 
@@ -486,7 +484,7 @@ export class ThreeChromiumRenderer implements RenderBackend {
     let png: Buffer;
     try {
       await this.ensureLoaded(slot, payload);
-      const b64 = await this.pageRender(slot, frame, { width: bw, height: bh, scale: ss, transparent: opts.transparent, frameIndex: Math.round(frame.time * scene.canvas.fps), background, screenFrames, output: "png" });
+      const b64 = await this.pageRender(slot, frame, { width: bw, height: bh, scale: bw / scene.canvas.width, transparent: opts.transparent, frameIndex: Math.round(frame.time * scene.canvas.fps), background, screenFrames, output: "png" });
       png = Buffer.from(b64, "base64");
       const keep = new Set<string>(payload.nodes.flatMap((n) => (n.kind === "device" && n.screenUrl ? [n.screenUrl] : [])));
       if (background.type === "image") keep.add(background.url);
@@ -561,25 +559,42 @@ export class ThreeChromiumRenderer implements RenderBackend {
       for (let i = opts.startFrame; i < opts.endFrame; i++) {
         if (signal?.aborted) throw new DwError("CANCELLED", "Render cancelled.");
         const frame = frameAt(i);
-        const token = `f${++this.uploadCounter}-${process.pid}`;
-        const data = this.expectUpload(token);
         const background = clips.background ? ({ type: "image", url: this.clipUrl(clips.background, frame.time) } as const) : staticBg!;
         const screenFrames = Object.fromEntries([...clips.screens].map(([id, c]) => [id, this.clipUrl(c, frame.time)]));
-        await this.pageRender(slot, frame, {
-          width: bw,
-          height: bh,
-          scale: ss,
-          transparent: opts.transparent,
-          frameIndex: i,
-          background,
-          screenFrames,
-          output: "rgba",
-          outWidth: w,
-          outHeight: h,
-          uploadUrl: `${this.origin}/upload/${token}`,
-        });
+        let data: Promise<Buffer> | null = null;
+        for (let attempt = 0; ; attempt++) {
+          const token = `f${++this.uploadCounter}-${process.pid}`;
+          const upload = this.expectUpload(token);
+          upload.catch(() => undefined); // awaited in flush(); never an unhandled rejection
+          try {
+            await this.pageRender(slot, frame, {
+              width: bw,
+              height: bh,
+              scale: bw / scene.canvas.width,
+              transparent: opts.transparent,
+              frameIndex: i,
+              background,
+              screenFrames,
+              output: "rgba",
+              outWidth: w,
+              outHeight: h,
+              uploadUrl: `${this.origin}/upload/${token}`,
+            });
+            data = upload;
+            break;
+          } catch (e) {
+            this.uploads.delete(token);
+            // A crashed or stuck page is replaced; frames are pure functions of the frame state, so retrying is safe.
+            const retryable = e instanceof DwError ? e.code === "RENDER_TIMEOUT" : /crash|closed|Chromium/i.test((e as Error).message ?? "");
+            if (!retryable || attempt >= 2 || signal?.aborted) throw e;
+            if (!(e instanceof DwError)) await this.replaceSlotPage(slot);
+            if (!this.browser) throw new DwError("RENDER_FAILED", "Chromium stopped during the render.");
+            await this.ensureLoaded(slot, payload);
+            process.stderr.write(`[renderer] frame ${i}: page restarted after ${(e as Error).message}; retrying\n`);
+          }
+        }
         if (inFlight) await flush(inFlight);
-        inFlight = { index: i, data };
+        inFlight = { index: i, data: data! };
       }
       if (inFlight) await flush(inFlight);
       await encoder.finish();
@@ -604,7 +619,6 @@ export class ThreeChromiumRenderer implements RenderBackend {
     await new Promise<void>((r) => (this.server ? this.server.close(() => r()) : r()));
     this.server = null;
     this.browser = null;
-    this.context = null;
     this.slots = [];
     this.starting = null;
   }

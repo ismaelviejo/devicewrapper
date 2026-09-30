@@ -14,3 +14,7 @@ export * from "./workspace.js";
 export * from "./store.js";
 export * from "./assets.js";
 export * from "./render.js";
+export * from "./layout.js";
+export * from "./style.js";
+export * from "./motion.js";
+export * from "./compose.js";

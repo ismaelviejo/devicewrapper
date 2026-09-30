@@ -25,6 +25,7 @@ const DEVICE: Record<string, PropertySpec> = {
   ...SPATIAL,
   "screen.brightness": { kind: "number", min: 0, max: 3, description: "Screen brightness multiplier." },
   "screen.glare": { kind: "number", min: 0, max: 1, description: "Screen reflection strength." },
+  lidAngle: { kind: "number", min: 0, max: 180, description: "Laptops: lid opening in degrees (0 closed, 90 upright)." },
 };
 
 const TEXT: Record<string, PropertySpec> = {

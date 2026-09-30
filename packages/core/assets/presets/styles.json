@@ -1,0 +1,75 @@
+{
+  "light-studio": {
+    "description": "Clean light-gray studio with soft light and a gentle contact shadow. The safe default.",
+    "background": { "type": "gradient", "kind": "radial", "center": [0.5, 0.42], "radius": 0.8, "stops": [{ "color": "#ffffff", "offset": 0 }, { "color": "#e3e6ec", "offset": 1 }] },
+    "lighting": "soft-studio",
+    "floor": { "type": "shadow", "opacity": 0.28 },
+    "effects": [],
+    "textColor": "#111318",
+    "deviceColors": { "smartphone": "black", "laptop": "space-black", "tablet": "space-gray", "watch": "midnight", "monitor": "silver" }
+  },
+  "dark-studio": {
+    "description": "Near-black studio with a soft top light, cool rim and vignette. Premium, dramatic.",
+    "background": { "type": "gradient", "kind": "linear", "angle": 180, "stops": [{ "color": "#1c1e25", "offset": 0 }, { "color": "#08090c", "offset": 1 }] },
+    "lighting": "dark",
+    "floor": { "type": "shadow", "opacity": 0.55 },
+    "effects": [{ "type": "vignette", "strength": 0.35, "color": "#000000" }],
+    "textColor": "#ffffff",
+    "deviceColors": { "smartphone": "midnight", "laptop": "space-black", "tablet": "space-gray", "watch": "midnight", "monitor": "space-black" }
+  },
+  "soft-gradient": {
+    "description": "Airy lavender-to-blue gradient with bright, soft light. Friendly consumer-app look.",
+    "background": { "type": "gradient", "kind": "linear", "angle": 160, "stops": [{ "color": "#f6f1ff", "offset": 0 }, { "color": "#dde8ff", "offset": 1 }] },
+    "lighting": "bright",
+    "floor": { "type": "shadow", "opacity": 0.22 },
+    "effects": [],
+    "textColor": "#1d1b3a",
+    "deviceColors": { "smartphone": "silver", "laptop": "silver", "tablet": "silver", "watch": "starlight", "monitor": "silver" }
+  },
+  "midnight-neon": {
+    "description": "Deep indigo with a hot-pink rim light and strong vignette. Bold, nightlife/fintech energy.",
+    "background": { "type": "gradient", "kind": "radial", "center": [0.5, 0.35], "radius": 0.9, "stops": [{ "color": "#241543", "offset": 0 }, { "color": "#06040d", "offset": 1 }] },
+    "lighting": "dramatic",
+    "lightOverrides": [{ "id": "rim", "color": "#ff4fd8", "intensity": 3.2 }],
+    "floor": { "type": "shadow", "opacity": 0.6 },
+    "effects": [{ "type": "vignette", "strength": 0.45, "color": "#000000" }],
+    "textColor": "#ffffff",
+    "deviceColors": { "smartphone": "midnight", "laptop": "midnight", "tablet": "space-gray", "watch": "midnight", "monitor": "space-black" }
+  },
+  "sunset": {
+    "description": "Warm peach-to-coral gradient with low golden light.",
+    "background": { "type": "gradient", "kind": "linear", "angle": 200, "stops": [{ "color": "#ffcf9e", "offset": 0 }, { "color": "#e8736f", "offset": 1 }] },
+    "lighting": "sunset",
+    "floor": { "type": "shadow", "opacity": 0.3 },
+    "effects": [],
+    "textColor": "#ffffff",
+    "deviceColors": { "smartphone": "natural", "laptop": "silver", "tablet": "silver", "watch": "starlight", "monitor": "silver" }
+  },
+  "mint": {
+    "description": "Fresh mint gradient with bright light. Health, finance, productivity apps.",
+    "background": { "type": "gradient", "kind": "radial", "center": [0.5, 0.4], "radius": 0.85, "stops": [{ "color": "#f2fbf6", "offset": 0 }, { "color": "#cdeedd", "offset": 1 }] },
+    "lighting": "bright",
+    "floor": { "type": "shadow", "opacity": 0.22 },
+    "effects": [],
+    "textColor": "#0f2b1f",
+    "deviceColors": { "smartphone": "white", "laptop": "silver", "tablet": "silver", "watch": "starlight", "monitor": "white" }
+  },
+  "product-white": {
+    "description": "Pure white seamless background with crisp commercial lighting. Store listings, press kits.",
+    "background": { "type": "solid", "color": "#ffffff" },
+    "lighting": "product",
+    "floor": { "type": "shadow", "opacity": 0.2 },
+    "effects": [],
+    "textColor": "#111111",
+    "deviceColors": { "smartphone": "black", "laptop": "space-black", "tablet": "space-gray", "watch": "midnight", "monitor": "silver" }
+  },
+  "transparent": {
+    "description": "No background (transparent PNG/WebP/WebM/MOV) with a soft shadow, for placing on your own designs.",
+    "background": { "type": "transparent" },
+    "lighting": "studio",
+    "floor": { "type": "shadow", "opacity": 0.3 },
+    "effects": [],
+    "textColor": "#111111",
+    "deviceColors": {}
+  }
+}

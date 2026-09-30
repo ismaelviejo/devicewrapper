@@ -1,0 +1,25 @@
+{
+  "name": "phone-pair",
+  "title": "Phone pair",
+  "description": "Two phones side by side, angled toward each other.",
+  "screens": 2,
+  "brief": {
+    "preset": "1080p",
+    "style": "light-studio",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen2}}"
+      }
+    ],
+    "layout": "arc",
+    "layoutOptions": {
+      "angle": 14
+    }
+  },
+  "variables": []
+}

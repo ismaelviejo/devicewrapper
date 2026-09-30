@@ -1,0 +1,26 @@
+{
+  "name": "phone-trio",
+  "title": "Phone trio",
+  "description": "Three phones in a gentle arc on a dark studio background; the center one forward.",
+  "screens": 3,
+  "brief": {
+    "preset": "1080p",
+    "style": "dark-studio",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen2}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen3}}"
+      }
+    ],
+    "layout": "arc"
+  },
+  "variables": []
+}

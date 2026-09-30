@@ -1,0 +1,22 @@
+{
+  "name": "phone-tablet",
+  "title": "Phone + tablet",
+  "description": "A tablet with a phone in front of it. For apps with phone and tablet layouts.",
+  "screens": 2,
+  "brief": {
+    "preset": "1080p",
+    "style": "soft-gradient",
+    "devices": [
+      {
+        "model": "tablet",
+        "screen": "{{screen1}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen2}}"
+      }
+    ],
+    "layout": "showcase"
+  },
+  "variables": []
+}

@@ -1,0 +1,41 @@
+{
+  "name": "device-grid",
+  "title": "Device grid",
+  "description": "Six phones in a flat 3\u00d72 grid on white. For feature overviews.",
+  "screens": 6,
+  "brief": {
+    "preset": "1080p",
+    "style": "product-white",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen2}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen3}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen4}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen5}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen6}}"
+      }
+    ],
+    "layout": "grid",
+    "layoutOptions": {
+      "columns": 3
+    }
+  },
+  "variables": []
+}

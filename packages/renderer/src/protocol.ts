@@ -85,7 +85,7 @@ export interface RenderFrameOptions {
   /** Size of the drawing buffer (already multiplied by supersampling). */
   width: number;
   height: number;
-  /** Supersampling factor, used to scale 2D overlays (text sizes are in output pixels). */
+  /** Buffer pixels per canvas pixel: text sizes are in canvas pixels, so they scale with the render size. */
   scale: number;
   transparent: boolean;
   /** Frame index, for per-frame deterministic noise. */

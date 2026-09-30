@@ -1,0 +1,16 @@
+{
+  "id": "monitor-27",
+  "name": "27-inch monitor",
+  "category": "monitor",
+  "form": "monitor",
+  "description": "Generic 27-inch 5K display on an aluminium stand. Panel 618 x 357 mm.",
+  "body": { "width": 0.6180, "height": 0.3570, "depth": 0.0120, "cornerRadius": 0.0080, "edgeRadius": 0.0020 },
+  "screen": { "width": 0.5979, "height": 0.3363, "cornerRadius": 0.0020, "offset": [0, 0.0035], "pixels": [5120, 2880] },
+  "stand": { "neckWidth": 0.1300, "neckDepth": 0.0150, "neckHeight": 0.1300, "neckAttach": -0.0300, "footWidth": 0.2000, "footDepth": 0.1700, "footThickness": 0.0080 },
+  "bezelColor": "#050505",
+  "colors": [
+    { "name": "silver", "body": "#d8d9db", "finish": "metal" },
+    { "name": "space-black", "body": "#2b2c30", "finish": "metal" },
+    { "name": "white", "body": "#f2f2f0", "finish": "matte" }
+  ]
+}

@@ -1,8 +1,9 @@
 /** Served as devicewrapper://guide and (shortened) as the server's instructions. */
 
-export const INSTRUCTIONS = `devicewrapper renders 3D device mockups (phones, tablets) for app marketing: stills and videos, headless, deterministic.
-Typical workflow: create_scene → add_device (screen: 'path/to/screenshot.png') → set_camera { frame: { shot: 'hero' } } → set_background / set_lights { preset } → render_preview (look at the image, adjust) → set_track for motion → render.
-Units are meters and degrees; +Y up; devices face +Z. Mutating tools return 'issues' when something needs attention. Read devicewrapper://guide for tips and devicewrapper://devices for models and colors.`;
+export const INSTRUCTIONS = `devicewrapper renders 3D device mockups (phones, tablets, laptops, monitors, watches) for app marketing: stills and videos, headless, deterministic.
+Fastest path: compose_scene (a brief, or a template from list_templates + your screenshot paths) → render_preview (look at the image) → refine with apply_layout / apply_style / apply_motion / set_camera / update_node → render.
+Low-level path: create_scene → add_device (screen: 'path/to/screenshot.png') → set_camera { frame: { shot } } → set_lights / set_background → set_track.
+Units are meters and degrees; +Y up; devices face +Z. Mutating tools return 'issues' when something needs attention. Read devicewrapper://guide for tips.`;
 
 export const GUIDE = `# devicewrapper guide
 
@@ -10,13 +11,16 @@ devicewrapper builds and renders 3D device mockups. Everything is a **scene**: J
 
 ## Workflow
 
-1. \`create_scene\` with a canvas preset ('1080p', '4k', 'square', 'portrait', 'app-store-6.9') and a lighting preset.
-2. \`add_device\` with \`screen\` set to a screenshot path (imported automatically). Devices are real size: a phone is ~7 x 15 cm.
-3. \`set_camera { frame: { shot: 'hero' } }\` to frame all devices. Try shots: front, hero, three-quarter, low-angle, closeup, wide.
-4. \`set_background\` (solid, gradient, image, transparent) and \`set_lights { preset }\`.
-5. \`render_preview\` and **look at the result**. Adjust rotation, camera, light, colors. Repeat.
-6. Optional motion: \`set_track\` on devices or the camera, extend \`canvas.duration\` with \`update_scene\`, preview a few times (\`time\`).
-7. \`render\` the final still or video (\`wait\` for short jobs, or poll \`get_render_job\`).
+Start high-level, then refine:
+
+1. \`list_templates\` and pick one, or write a brief. \`compose_scene { template: 'phone-trio', screens: ['a.png', 'b.png', 'c.png'] }\`
+   or \`compose_scene { devices: [{ model: 'laptop-14', screen: 'web.png' }, { screen: 'app.png' }], style: 'dark-studio', text: [{ content: 'Ship faster' }], motion: 'push-in', duration: 5 }\`.
+2. \`render_preview\` and **look at the result**.
+3. Refine: \`apply_layout\` (row, arc, fan, stack, grid, circle, showcase), \`apply_style\` (light-studio, dark-studio, soft-gradient, midnight-neon, sunset, mint, product-white, transparent),
+   \`apply_motion\` (float, slow-turn, turntable, rise, enter-left, orbit, push-in, lid-open, …), \`set_camera { frame: { shot } }\`, \`update_node\`, \`set_lights\`. Preview again.
+4. \`render\` the final still or video (\`wait\` for stills, poll \`get_render_job\` for videos).
+
+Low-level building blocks are always available: create_scene, add_device, add_node, set_track, set_background, set_effects.
 
 ## Coordinates and scale
 
@@ -28,7 +32,9 @@ devicewrapper builds and renders 3D device mockups. Everything is a **scene**: J
 
 ## Composition tips
 
+- Devices: phone-modern, phone-classic, tablet, laptop-14 (lidAngle), monitor-27, watch-45. See devicewrapper://devices for sizes and colors.
 - Hero shot: one phone, rotation around [0, -15..-25, 0], shot 'hero', focalLength 50–85 for a flattering, low-distortion look.
+- Mixed devices (laptop + phone, tablet + phone): layout 'showcase' puts the big one center and small ones in front.
 - Pairs/trios: space phones ~0.085 m apart (x), rotate outer ones toward the center (±12–20° on Y), push the center one forward (z +0.02).
 - Dark studio: background gradient #1b1d24 → #07080b, lighting 'dark' or 'dramatic', vignette 0.35.
 - Light studio: background #f4f5f7 or a soft radial gradient, lighting 'soft-studio' or 'bright'.
@@ -41,7 +47,8 @@ devicewrapper builds and renders 3D device mockups. Everything is a **scene**: J
 - Natural motion: 'easeInOut' / 'easeInOutCubic' / 'easeInOutSine'. Arrivals: 'easeOutCubic' / 'easeOutBack'.
 - Turntable: rotation [0,0,0] → [0,360,0] (linear) over the whole duration.
 - Camera orbit: 3+ camera position keyframes follow a smooth spline; keep the target fixed on the subject.
-- Floating phone: position y oscillating ±0.004 m with easeInOutSine keyframes.
+- Floating phone: apply_motion 'float' (or position y oscillating ±0.004 m with easeInOutSine keyframes).
+- Motions layer: apply_motion 'float' then 'rise' wraps the device in a group so both play.
 - Preview motion by rendering previews at several \`time\` values before a full video render.
 
 ## Video

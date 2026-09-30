@@ -1,10 +1,10 @@
 # devicewrapper
 
-Headless 3D device mockups for AI agents. An MCP server that lets Claude Code (or any MCP client) build scenes with phones and tablets, put your app screenshots or screen recordings on their screens, light, frame and animate them, and render stills and videos. No UI.
+Headless 3D device mockups for AI agents. An MCP server that lets Claude Code (or any MCP client) build scenes with phones, tablets, laptops, monitors and watches, put your app screenshots or screen recordings on their screens, light, frame and animate them, and render stills and videos. No UI.
 
 <p align="center"><img src="tests/golden/reference/dark-trio-en.png" width="480" alt="Three phones rendered by devicewrapper"></p>
 
-> **Status:** Phases 1–3 of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, stills (PNG/JPEG/WebP) and video (MP4, WebM, ProRes MOV, with transparency; screen recordings on device screens). Next is Phase 4: more devices, layouts, motion presets, templates. See [DECISIONS.md](DECISIONS.md) for design choices and current limitations.
+> **Status:** Phases 1–4 of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, stills and video (MP4, WebM, ProRes, with transparency), six device models, layouts, styles, motion presets, 15 templates and one-call `compose_scene`. Next: Phase 5 (text and localization polish), Phase 6 (look development), Phase 7 (docs). See [DECISIONS.md](DECISIONS.md) for design choices and current limitations.
 
 ## Setup
 
@@ -50,12 +50,15 @@ Then ask Claude things like:
 
 > Make a 5-second 1080p MP4: a black phone playing `design/onboarding.mp4`, slowly turning while the camera pushes in. Draft it small first.
 
+> Use the phone-laptop template with `web/dashboard.png` and `app/home.png`, dark studio style, and a laptop lid-open reveal.
+
 ## What the agent gets
 
-**Tools (26)**
+**Tools (31)**
 
 | Area | Tools |
 |---|---|
+| Compose | `compose_scene` (one call from a brief or template), `list_templates`, `apply_layout`, `apply_style`, `apply_motion` |
 | Scenes | `create_scene`, `list_scenes`, `get_scene`, `update_scene`, `duplicate_scene`, `delete_scene`, `validate_scene`, `import_scene`, `export_scene` |
 | Nodes | `add_device`, `add_node` (plane, primitive, group, text), `update_node`, `remove_node` |
 | Look | `set_camera` (auto-framing shots), `set_lights` (presets), `set_background`, `set_effects` |
@@ -65,7 +68,11 @@ Then ask Claude things like:
 
 **Resources:** `devicewrapper://guide` (workflow and composition tips), `schema/scene` (JSON Schema), `devices`, `presets`, `animatable`, `capabilities`, and every saved scene at `devicewrapper://scenes/{id}`.
 
-**Devices:** `phone-modern`, `phone-classic`, `tablet`, each with color variants. Add your own with a JSON file in `.devicewrapper/devices/`.
+**Devices:** `phone-modern`, `phone-classic`, `tablet`, `laptop-14` (animatable lid), `monitor-27`, `watch-45`, each with color variants. Add your own with a JSON file in `.devicewrapper/devices/`.
+
+**Templates (15):** hero-phone, hero-laptop, phone-pair, phone-trio, phone-tablet, phone-laptop, floating-phone, device-grid, device-carousel, app-store-hero, dark-product-shot, light-product-shot, watch-hero, desktop-setup, laptop-reveal. Add your own briefs in `.devicewrapper/templates/`.
+
+**Styles:** light-studio, dark-studio, soft-gradient, midnight-neon, sunset, mint, product-white, transparent. **Layouts:** hero, row, arc, fan, stack, grid, circle, showcase. **Motions:** 23 presets (float, slow-turn, turntable, rise, enter/exit, spin-reveal, lid-open, orbit, push-in, pan, crane, zoom …).
 
 ## CLI
 
@@ -87,8 +94,8 @@ devicewrapper setup
 | Package | What it does |
 |---|---|
 | `@devicewrapper/schema` | Zod schemas for the scene format; JSON Schema export |
-| `@devicewrapper/core` | Pure scene operations, validation, timeline evaluation, camera framing, workspace, scene store, assets, device definitions and presets |
-| `@devicewrapper/renderer` | Three.js in headless Chromium; texture preparation with sharp |
+| `@devicewrapper/core` | Pure scene operations, validation, timeline evaluation, camera framing, layouts, styles, motions, compose + templates, workspace, scene store, assets, device definitions and presets |
+| `@devicewrapper/renderer` | Three.js in headless Chromium (driven over a DevTools pipe); textures with sharp; video with FFmpeg |
 | `@devicewrapper/jobs` | `Engine` facade and the render job queue |
 | `@devicewrapper/mcp` | The MCP server |
 | `devicewrapper` | CLI |

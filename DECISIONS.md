@@ -74,9 +74,29 @@ Choices made while building, with the reason for each. Where the implementation 
 
 **MCP `wait` is capped at 50 s.** MCP clients time out a request after about 60 s, which a `wait: 600` in testing hit. Tool descriptions tell agents to poll `get_render_job { wait: 45 }` for videos and to draft small first.
 
-### Known limitations after Phase 3
+**The render page is driven over a raw DevTools pipe, not Playwright.** A 150-frame 1080p render showed Node memory growing by one full frame per frame (1.4 GB at frame 120). A heap snapshot traced it to Playwright's network manager, which keeps every request of a page, including POST bodies, alive; Chrome also mirrors each body over the protocol. The renderer now launches the same headless Chromium itself with `--remote-debugging-pipe` and speaks minimal CDP (Target/Runtime/Page only; the Network domain is never enabled). Node memory stays flat (~200 MB) and 1080p frames dropped from ~1.8 s to ~1.2 s. Playwright is still used to install Chromium and locate the binary. *Replaces the earlier Playwright page.*
+
+**Crashes and hangs don't kill renders.** Target crashes fail pending calls immediately; every page call has a deadline; mid-video, a crashed or stuck page is replaced, the scene reloaded, and the frame retried (up to twice). Frames are pure functions of `FrameState`, so a recovered video is frame-identical to a clean one (tested by crashing the page mid-render).
+
+## Phase 4: devices, layouts, styles, motion, templates, compose_scene
+
+**Devices are a union of geometry forms**: `slab` (phones, tablets), `laptop` (base + hinged lid; the node's `lidAngle` is animatable), `monitor` (panel + neck + foot), `watch` (case + crown + looped band). New models: `laptop-14`, `monitor-27`, `watch-45`. Screens, glass, cutouts and glare share one code path across forms. Keyboards are drawn procedurally (canvas texture), so nothing proprietary ships.
+
+**Layouts use real sizes and a shared floor line**, so mixed devices compose correctly (a phone stands next to a laptop, not floating at its center). `showcase` handles mixed sizes; `circle` puts devices in a `carousel` group so the whole ring can turn.
+
+**Styles are data** (`assets/presets/styles.json`): background, lighting preset (+ light overrides), effects, floor, text color and suggested device colors per category. `compose_scene` uses the suggested colors unless a device color is given.
+
+**Motion presets are code, described by data.** They need geometry (device sizes, camera distance, lid defaults), so the keyframes are computed, but every preset is relative to the current pose and deterministic. *Small departure: the plan pictured motions as pure data.* When a property is already animated, `stack: 'auto'` wraps the device in a group and animates the group, so `float` + `rise` both play. The renderer multiplies opacity down the node hierarchy for this.
+
+**`compose_scene` is a pipeline of the same operations the granular tools use** (create → devices → layout → style → text → camera → motion → render defaults), so everything it builds can be refined afterwards. It leaves room for text by shifting the subject in frame (new `frame.shift` on `set_camera`) and adding padding.
+
+**Templates are saved briefs** with `{{screenN}}` slots (`assets/templates/*.json`, plus user templates in `.devicewrapper/templates/`). 15 built-in: hero-phone, hero-laptop, phone-pair, phone-trio, phone-tablet, phone-laptop, floating-phone, device-grid, device-carousel, app-store-hero, dark-product-shot, light-product-shot, watch-hero, desktop-setup, laptop-reveal. There are no separate `create_from_template` / `apply_template` tools: `compose_scene { template, screens, …overrides }` covers both. *Departure from the plan's tool list.*
+
+**Bug found in review: text didn't scale with render size.** Text sizes are canvas pixels, but the page scaled them only by supersampling, so a 640 px preview of a 1920 px scene drew text 3× too large. Now scaled by buffer width / canvas width.
+
+### Known limitations after Phase 4
 
 - Bloom and depth of field are accepted in the scene format but not drawn yet; validation warns `NOT_RENDERED`.
-- Device models: `phone-modern`, `phone-classic`, `tablet`. Laptop, monitor and watch are Phase 4, along with layouts, motion presets, templates and `compose_scene`.
-- Video renders on one page at a time; parallel frame rendering across pages would help on many-core machines.
-- The first render after the server starts takes about 12–20 s (Chromium start, shader compile, texture upload).
+- Videos render on one page at a time; spreading frames across pages would help on many-core machines.
+- The first render after the server starts takes about 10–20 s (Chromium start, shader compile, texture upload).
+- CJK and other non-Latin scripts beyond Latin/Cyrillic/Greek/Vietnamese need a font asset (import a TTF/OTF and use its asset ID as `font`).

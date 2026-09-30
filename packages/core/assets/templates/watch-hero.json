@@ -1,0 +1,26 @@
+{
+  "name": "watch-hero",
+  "title": "Watch hero",
+  "description": "A smartwatch with its band, slightly turned, on a soft gradient.",
+  "screens": 1,
+  "brief": {
+    "preset": "1080p",
+    "style": "soft-gradient",
+    "devices": [
+      {
+        "model": "watch-45",
+        "screen": "{{screen1}}"
+      }
+    ],
+    "layout": "hero",
+    "layoutOptions": {
+      "angle": 20
+    },
+    "camera": {
+      "shot": "hero",
+      "focalLength": 85,
+      "padding": 0.2
+    }
+  },
+  "variables": []
+}

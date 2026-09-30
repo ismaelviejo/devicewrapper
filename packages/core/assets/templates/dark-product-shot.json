@@ -1,0 +1,26 @@
+{
+  "name": "dark-product-shot",
+  "title": "Dark product shot",
+  "description": "One phone at a strong three-quarter angle in a dark, dramatic studio.",
+  "screens": 1,
+  "brief": {
+    "preset": "1080p",
+    "style": "dark-studio",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      }
+    ],
+    "layout": "hero",
+    "layoutOptions": {
+      "angle": -24
+    },
+    "camera": {
+      "shot": "three-quarter",
+      "focalLength": 70,
+      "padding": 0.25
+    }
+  },
+  "variables": []
+}

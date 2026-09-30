@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Command } from "commander";
-import { isDwError, loadConfig, type RenderBackend } from "@devicewrapper/core";
+import { deviceSize, isDwError, loadConfig, type RenderBackend } from "@devicewrapper/core";
 import { Engine } from "@devicewrapper/jobs";
 import { runStdioServer } from "@devicewrapper/mcp";
 import { loadBackend, renderCommand, setupCommand } from "./render.js";
@@ -110,7 +110,8 @@ program
     try {
       const engine = await engineFor({ ...program.opts(), render: false });
       for (const d of engine.devices.list()) {
-        console.log(`${d.id.padEnd(16)} ${d.category.padEnd(11)} ${(d.body.width * 1000).toFixed(1)} x ${(d.body.height * 1000).toFixed(1)} mm  colors: ${d.colors.map((c) => c.name).join(", ")}`);
+        const [w, h, dep] = deviceSize(d).map((v) => (v * 1000).toFixed(1));
+        console.log(`${d.id.padEnd(16)} ${d.category.padEnd(11)} ${w} x ${h} x ${dep} mm  colors: ${d.colors.map((c) => c.name).join(", ")}`);
       }
     } catch (e) {
       fail(e);

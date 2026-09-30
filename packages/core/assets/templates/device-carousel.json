@@ -1,0 +1,47 @@
+{
+  "name": "device-carousel",
+  "title": "Device carousel (video)",
+  "description": "Five phones on a turning ring, seen from slightly above. 8-second loop.",
+  "screens": 5,
+  "brief": {
+    "preset": "1080p",
+    "duration": 8,
+    "style": "dark-studio",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen2}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen3}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen4}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen5}}"
+      }
+    ],
+    "layout": "circle",
+    "motion": {
+      "preset": "turntable",
+      "target": "carousel"
+    },
+    "layoutOptions": {
+      "spacing": 0.9
+    },
+    "camera": {
+      "shot": "high-angle",
+      "focalLength": 50,
+      "padding": 0.18
+    }
+  },
+  "variables": []
+}

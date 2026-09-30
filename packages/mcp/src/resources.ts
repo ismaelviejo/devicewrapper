@@ -1,5 +1,5 @@
 import { ResourceTemplate, type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { CAMERA_SHOTS, LIGHTING_PRESETS, SHOT_PRESETS, animatableCatalog, canonicalStringify } from "@devicewrapper/core";
+import { CAMERA_SHOTS, LAYOUTS, LIGHTING_PRESETS, MOTIONS, SHOT_PRESETS, STYLES, animatableCatalog, canonicalStringify, deviceSize } from "@devicewrapper/core";
 import type { Engine } from "@devicewrapper/jobs";
 import { EASINGS, sceneJsonSchema } from "@devicewrapper/schema";
 import { GUIDE } from "./guide.js";
@@ -36,7 +36,8 @@ export function registerResources(server: McpServer, engine: Engine): void {
           name: d.name,
           category: d.category,
           description: d.description,
-          sizeMeters: { width: d.body.width, height: d.body.height, depth: d.body.depth },
+          form: d.form,
+          sizeMeters: deviceSize(d).map((v) => Math.round(v * 10000) / 10000),
           screenPixels: d.screen.pixels,
           screenAspect: Math.round((d.screen.pixels[0] / d.screen.pixels[1]) * 10000) / 10000,
           colors: d.colors.map((c) => ({ name: c.name, hex: c.body, finish: c.finish })),
@@ -47,11 +48,14 @@ export function registerResources(server: McpServer, engine: Engine): void {
   server.registerResource(
     "presets",
     "devicewrapper://presets",
-    { title: "Presets", description: "Lighting presets, camera shots, easings and canvas size presets.", mimeType: "application/json" },
+    { title: "Presets", description: "Styles, layouts, motions, lighting presets, camera shots, easings and canvas sizes.", mimeType: "application/json" },
     async (uri) =>
       json(uri.href, {
         lighting: Object.fromEntries(Object.entries(LIGHTING_PRESETS).map(([k, v]) => [k, { description: v.description, lights: v.lights.map((l) => `${l.id} (${l.type})`) }])),
         cameraShots: Object.fromEntries(CAMERA_SHOTS.map((s) => [s, SHOT_PRESETS[s]!.description])),
+        styles: Object.fromEntries(Object.entries(STYLES).map(([k, v]) => [k, v.description])),
+        layouts: LAYOUTS,
+        motions: Object.fromEntries(Object.entries(MOTIONS).map(([k, v]) => [k, `${v.kind}: ${v.description}`])),
         easings: EASINGS,
         canvas: CANVAS_PRESETS,
       }),

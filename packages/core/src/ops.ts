@@ -18,6 +18,7 @@ import {
 } from "@devicewrapper/schema";
 import { z } from "zod";
 import { frameTargets } from "./bounds.js";
+import { v3 } from "./math.js";
 import { resolveDeviceColor, type DeviceRegistry } from "./devices.js";
 import { DwError, schemaError } from "./errors.js";
 import { allocateId } from "./ids.js";
@@ -279,7 +280,7 @@ export function removeNode(scene: Scene, id: string, opts: { recursive?: boolean
 export interface SetCameraOptions {
   patch?: Patch;
   focalLength?: number;
-  frame?: { targets?: string[]; shot?: CameraShot; direction?: Vec3; padding?: number };
+  frame?: { targets?: string[]; shot?: CameraShot; direction?: Vec3; padding?: number; shift?: [number, number] };
 }
 
 export function setCamera(scene: Scene, opts: SetCameraOptions, devices: DeviceRegistry): Scene {
@@ -312,6 +313,20 @@ export function setCamera(scene: Scene, opts: SetCameraOptions, devices: DeviceR
       roll: cam.roll,
     });
     cam = { ...cam, position: r.position, target: r.target, orthoHeight: r.orthoHeight };
+    const shift = opts.frame.shift;
+    if (shift && (shift[0] || shift[1])) {
+      // Move the subject within the frame: +y moves it down (room for a headline), +x moves it right.
+      const fwd = v3.norm(v3.sub(cam.target, cam.position));
+      let up: Vec3 = [0, 1, 0];
+      if (Math.abs(v3.dot(fwd, up)) > 0.999) up = [0, 0, -1];
+      const right = v3.norm(v3.cross(fwd, up));
+      const camUp = v3.cross(right, fwd);
+      const dist = v3.len(v3.sub(cam.target, cam.position));
+      const visH = cam.type === "orthographic" ? cam.orthoHeight : 2 * dist * Math.tan((cam.fov * Math.PI) / 360);
+      const visW = visH * (s.canvas.width / s.canvas.height);
+      const move = v3.add(v3.scale(camUp, shift[1] * visH), v3.scale(right, -shift[0] * visW));
+      cam = { ...cam, position: v3.add(cam.position, move), target: v3.add(cam.target, move) };
+    }
   }
   if (cam.position.every((v, k) => Math.abs(v - cam.target[k]!) < 1e-9)) {
     throw new DwError("INVALID_CAMERA", "Camera position and target are the same point, so the view direction is undefined.", {

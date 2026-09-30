@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Scene, sceneJsonSchema, DeviceDefinition } from "@devicewrapper/schema";
 import { canonicalStringify, hashValue, parseScene, migrateScene, DwError } from "@devicewrapper/core";
 import { readFileSync, readdirSync } from "node:fs";
-import { BUILTIN_ASSETS_DIR } from "@devicewrapper/core";
+import { BUILTIN_ASSETS_DIR, deviceSize } from "@devicewrapper/core";
 import { join } from "node:path";
 
 describe("scene schema", () => {
@@ -40,8 +40,10 @@ describe("scene schema", () => {
     const dir = join(BUILTIN_ASSETS_DIR, "devices");
     for (const f of readdirSync(dir)) {
       const d = DeviceDefinition.parse(JSON.parse(readFileSync(join(dir, f), "utf8")));
-      expect(d.screen.width).toBeLessThan(d.body.width);
-      expect(d.screen.height).toBeLessThan(d.body.height);
+      const [w, h] = deviceSize(d);
+      expect(d.screen.width, d.id).toBeLessThan(w);
+      expect(d.screen.height, d.id).toBeLessThan(h);
+      expect(d.id).toBe(f.replace(/\.json$/, ""));
     }
   });
 });

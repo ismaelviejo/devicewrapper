@@ -1,0 +1,65 @@
+{
+  "id": "watch-45",
+  "name": "45 mm smartwatch",
+  "category": "watch",
+  "form": "watch",
+  "description": "Generic 45 mm smartwatch with rounded case, crown and sport band. Screen 396 x 484 px.",
+  "body": {
+    "width": 0.0395,
+    "height": 0.045,
+    "depth": 0.0105,
+    "cornerRadius": 0.0105,
+    "edgeRadius": 0.004
+  },
+  "screen": {
+    "width": 0.034,
+    "height": 0.0395,
+    "cornerRadius": 0.008,
+    "offset": [
+      0,
+      0
+    ],
+    "pixels": [
+      396,
+      484
+    ]
+  },
+  "crown": {
+    "diameter": 0.0068,
+    "length": 0.0026,
+    "offsetY": 0.015
+  },
+  "band": {
+    "width": 0.022,
+    "length": 0.062,
+    "thickness": 0.0032,
+    "curl": 150
+  },
+  "bezelColor": "#050505",
+  "colors": [
+    {
+      "name": "midnight",
+      "body": "#23262c",
+      "finish": "metal",
+      "accent": "#1b1e24"
+    },
+    {
+      "name": "starlight",
+      "body": "#e6dfd3",
+      "finish": "metal",
+      "accent": "#d8cfbf"
+    },
+    {
+      "name": "red",
+      "body": "#b3262e",
+      "finish": "metal",
+      "accent": "#a0212a"
+    },
+    {
+      "name": "silver",
+      "body": "#d7d8da",
+      "finish": "metal",
+      "accent": "#35577a"
+    }
+  ]
+}

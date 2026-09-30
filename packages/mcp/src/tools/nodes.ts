@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { DwError, addNode, ensureAsset, removeNode, updateNode, type Workspace } from "@devicewrapper/core";
+import { DwError, addNode, deviceSize, ensureAsset, removeNode, updateNode, type Workspace } from "@devicewrapper/core";
 import type { Scene } from "@devicewrapper/schema";
 import type { Engine } from "@devicewrapper/jobs";
 import { Id, Vec3 } from "@devicewrapper/schema";
@@ -54,6 +54,7 @@ export function registerNodeTools(server: McpServer, engine: Engine): void {
         scale: z.number().positive().optional(),
         parent: Id.optional().describe("Group node to attach to."),
         castShadow: z.boolean().optional(),
+        lidAngle: z.number().min(0).max(180).optional().describe("Laptops: lid opening in degrees (0 closed, 90 upright, default ≈110)."),
       },
     },
     wrap(async (a) => {
@@ -65,6 +66,7 @@ export function registerNodeTools(server: McpServer, engine: Engine): void {
         if (a.color) node.color = a.color;
         if (a.parent) node.parent = a.parent;
         if (a.castShadow !== undefined) node.castShadow = a.castShadow;
+        if (a.lidAngle !== undefined) node.lidAngle = a.lidAngle;
         const transform: Record<string, unknown> = {};
         if (a.position) transform.position = a.position;
         if (a.rotation) transform.rotation = a.rotation;
@@ -84,7 +86,7 @@ export function registerNodeTools(server: McpServer, engine: Engine): void {
           result: {
             nodeId: r.id,
             model: def.id,
-            sizeMeters: [def.body.width, def.body.height, def.body.depth],
+            sizeMeters: deviceSize(def).map((v) => Math.round(v * 10000) / 10000),
             ...(imported ? { importedAsset: imported } : {}),
           },
         };

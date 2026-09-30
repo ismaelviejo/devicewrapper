@@ -1,0 +1,22 @@
+{
+  "name": "phone-laptop",
+  "title": "Phone + laptop",
+  "description": "A laptop with a phone standing in front of it. For products with web and mobile apps.",
+  "screens": 2,
+  "brief": {
+    "preset": "1080p",
+    "style": "light-studio",
+    "devices": [
+      {
+        "model": "laptop-14",
+        "screen": "{{screen1}}"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "{{screen2}}"
+      }
+    ],
+    "layout": "showcase"
+  },
+  "variables": []
+}

@@ -193,31 +193,14 @@ async function loadFrameTexture(url: string): Promise<THREE.Texture> {
 
 /* --------------------------------------------------------------- devices */
 
-const geometryCache = new Map<string, Record<string, THREE.BufferGeometry>>();
-
-function deviceGeometries(def: DeviceDefinition): Record<string, THREE.BufferGeometry> {
-  const key = JSON.stringify([def.id, def.body, def.screen, def.cutout, def.cameraBump, def.buttons]);
-  let g = geometryCache.get(key);
-  if (g) return g;
-  const { width: w, height: h, depth: d, cornerRadius: r, edgeRadius: e } = def.body;
-  const edge = Math.max(0, Math.min(e, d / 2 - 1e-5));
-  g = {
-    body: roundedSlab(w, h, d, r, edge),
-    glass: roundedRectFlat(w - 2 * edge, h - 2 * edge, Math.max(r - edge, 1e-5), 48),
-    screen: roundedRectFlat(def.screen.width, def.screen.height, def.screen.cornerRadius, 48),
-  };
-  if (def.cutout) {
-    const c = def.cutout;
-    g.cutout = c.type === "punch" ? new THREE.CircleGeometry(c.width / 2, 48) : roundedRectFlat(c.width, c.height, c.type === "island" ? c.height / 2 : c.height * 0.4, 24);
+const geometryCache = new Map<string, THREE.BufferGeometry>();
+function cachedGeometry(key: unknown, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
+  const k = JSON.stringify(key);
+  let g = geometryCache.get(k);
+  if (!g) {
+    g = make();
+    geometryCache.set(k, g);
   }
-  if (def.cameraBump) {
-    const b = def.cameraBump;
-    const be = Math.min(0.0006, b.depth / 2);
-    g.bump = roundedSlab(b.width, b.height, b.depth + 0.0006, b.cornerRadius, be, 32);
-    g.lensRing = new THREE.CylinderGeometry(0.5, 0.5, 1, 64).rotateX(Math.PI / 2);
-    g.lensGlass = new THREE.CircleGeometry(0.5, 64);
-  }
-  geometryCache.set(key, g);
   return g;
 }
 
@@ -225,55 +208,58 @@ interface DeviceParts {
   group: THREE.Group;
   screenMaterial: THREE.MeshBasicMaterial;
   glareMaterial: THREE.MeshStandardMaterial;
+  /** Laptops: the lid pivot, rotated by lidAngle each frame. */
+  lid?: THREE.Object3D;
+  defaultLidAngle?: number;
 }
 
-async function buildDevice(n: PageDevice): Promise<DeviceParts> {
+function bodyMaterialFor(n: PageDevice): THREE.Material {
+  if (n.bodyMaterial) return makeMaterial(n.bodyMaterial);
+  return new THREE.MeshPhysicalMaterial({ color: color(n.bodyColor), ...FINISH[n.finish] });
+}
+
+function accentColor(n: PageDevice, fallback: string): string {
+  const variant = n.def.colors.find((c) => c.body.toLowerCase() === n.bodyColor.toLowerCase());
+  return variant?.accent ?? fallback;
+}
+
+/**
+ * Glass, screen, cutout and glare layers on a flat face at z = faceZ (facing +z) of `parent`.
+ * `face` is the glass area; the screen sits at `centerY + def.screen.offset`.
+ */
+async function addScreen(parent: THREE.Object3D, n: PageDevice, face: { w: number; h: number; r: number; centerY: number }, faceZ: number): Promise<{ screenMaterial: THREE.MeshBasicMaterial; glareMaterial: THREE.MeshStandardMaterial }> {
   const def = n.def;
-  const geo = deviceGeometries(def);
-  const { width: w, height: h, depth: d } = def.body;
-  const group = new THREE.Group();
-
-  let bodyMat: THREE.Material;
-  if (n.bodyMaterial) bodyMat = makeMaterial(n.bodyMaterial);
-  else {
-    const f = FINISH[n.finish];
-    bodyMat = new THREE.MeshPhysicalMaterial({ color: color(n.bodyColor), ...f });
-  }
-  const body = new THREE.Mesh(geo.body, bodyMat);
-  body.castShadow = n.castShadow;
-  body.receiveShadow = n.receiveShadow;
-  group.add(body);
-
-  const glassMat = new THREE.MeshPhysicalMaterial({
-    color: color(def.bezelColor),
-    roughness: 0.06,
-    metalness: 0,
-    clearcoat: 1,
-    clearcoatRoughness: 0.03,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -4,
-  });
-  const glass = new THREE.Mesh(geo.glass, glassMat);
-  glass.position.z = d / 2 + 0.00004;
-  group.add(glass);
+  const glassGeo = cachedGeometry(["glass", face.w, face.h, face.r], () => roundedRectFlat(face.w, face.h, face.r, 48));
+  const glass = new THREE.Mesh(
+    glassGeo,
+    new THREE.MeshPhysicalMaterial({ color: color(def.bezelColor), roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.03, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }),
+  );
+  glass.position.set(0, face.centerY, faceZ + 0.00004);
+  parent.add(glass);
 
   // Screen: unlit, so screenshots keep their exact colors. Glare is a separate additive glass layer
   // (specular only), scaled by `glare`, so reflections never wash out the UI.
-  const screenMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    toneMapped: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -8,
-  });
+  const screenMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
   if (n.screenUrl) screenMaterial.map = await loadTexture(n.screenUrl);
   else screenMaterial.color = color(n.screenColor);
   screenMaterial.userData.baseColor = screenMaterial.color.clone();
-  const screen = new THREE.Mesh(geo.screen, screenMaterial);
-  screen.position.set(def.screen.offset[0], def.screen.offset[1], d / 2 + 0.00008);
+  const s = def.screen;
+  const screen = new THREE.Mesh(cachedGeometry(["screen", s.width, s.height, s.cornerRadius], () => roundedRectFlat(s.width, s.height, s.cornerRadius, 48)), screenMaterial);
+  screen.position.set(s.offset[0], face.centerY + s.offset[1], faceZ + 0.00008);
   screen.name = "screen";
-  group.add(screen);
+  parent.add(screen);
+
+  if (def.cutout) {
+    const c = def.cutout;
+    const geo = cachedGeometry(["cutout", c], () =>
+      c.type === "punch" ? new THREE.CircleGeometry(c.width / 2, 48) : roundedRectFlat(c.width, c.height, c.type === "island" ? c.height / 2 : c.height * 0.45, 24),
+    );
+    const cut = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color: 0x010101, roughness: 0.1, clearcoat: 1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -12 }));
+    const top = face.centerY + s.offset[1] + s.height / 2;
+    cut.position.set(s.offset[0], top - c.offsetY - c.height / 2, faceZ + 0.00012);
+    parent.add(cut);
+  }
+
   const glareMaterial = new THREE.MeshStandardMaterial({
     color: 0x000000,
     roughness: 0.05,
@@ -288,60 +274,218 @@ async function buildDevice(n: PageDevice): Promise<DeviceParts> {
     polygonOffsetUnits: -16,
   });
   glareMaterial.userData.isGlare = true;
-  const glareMesh = new THREE.Mesh(geo.glass, glareMaterial);
-  glareMesh.position.z = d / 2 + 0.00016;
-  glareMesh.renderOrder = 2;
-  group.add(glareMesh);
+  const glare = new THREE.Mesh(glassGeo, glareMaterial);
+  glare.position.set(0, face.centerY, faceZ + 0.00016);
+  glare.renderOrder = 2;
+  parent.add(glare);
+  return { screenMaterial, glareMaterial };
+}
 
-  if (def.cutout && geo.cutout) {
-    const c = def.cutout;
-    const cut = new THREE.Mesh(
-      geo.cutout,
-      new THREE.MeshPhysicalMaterial({ color: 0x010101, roughness: 0.1, clearcoat: 1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -12 }),
-    );
-    const topOfScreen = def.screen.offset[1] + def.screen.height / 2;
-    cut.position.set(def.screen.offset[0], topOfScreen - c.offsetY - c.height / 2, d / 2 + 0.00012);
-    group.add(cut);
-  }
+function shadowed<T extends THREE.Mesh>(m: T, n: PageDevice): T {
+  m.castShadow = n.castShadow;
+  m.receiveShadow = n.receiveShadow;
+  return m;
+}
 
-  if (def.cameraBump && geo.bump) {
+async function buildSlab(n: PageDevice, def: Extract<PageDevice["def"], { form: "slab" }>): Promise<DeviceParts> {
+  const { width: w, height: h, depth: d, cornerRadius: r, edgeRadius: e } = def.body;
+  const edge = Math.max(0, Math.min(e, d / 2 - 1e-5));
+  const group = new THREE.Group();
+  const bodyMat = bodyMaterialFor(n);
+  group.add(shadowed(new THREE.Mesh(cachedGeometry(["slab", def.body], () => roundedSlab(w, h, d, r, edge)), bodyMat), n));
+  const screen = await addScreen(group, n, { w: w - 2 * edge, h: h - 2 * edge, r: Math.max(r - edge, 1e-5), centerY: 0 }, d / 2);
+
+  if (def.cameraBump) {
     const b = def.cameraBump;
+    const be = Math.min(0.0006, b.depth / 2);
     const bumpMat = bodyMat.clone();
     if (bumpMat instanceof THREE.MeshPhysicalMaterial) bumpMat.roughness = Math.max(0.08, bumpMat.roughness - 0.12);
-    const bump = new THREE.Mesh(geo.bump, bumpMat);
+    const bumpDepth = b.depth + 0.0006;
+    const bump = shadowed(new THREE.Mesh(cachedGeometry(["bump", b], () => roundedSlab(b.width, b.height, bumpDepth, b.cornerRadius, be, 32)), bumpMat), n);
     // Seen from the back, +x is to the viewer's right, which is -x in device space.
     const bx = -b.position[0], by = b.position[1];
-    const bumpDepth = b.depth + 0.0006;
     bump.position.set(bx, by, -d / 2 - bumpDepth / 2 + 0.0006);
-    bump.castShadow = n.castShadow;
     group.add(bump);
     const back = -d / 2 - b.depth;
+    const ringGeo = cachedGeometry(["lensRing"], () => new THREE.CylinderGeometry(0.5, 0.5, 1, 64).rotateX(Math.PI / 2));
+    const lensGeo = cachedGeometry(["lensGlass"], () => new THREE.CircleGeometry(0.5, 64));
     const ringMat = new THREE.MeshPhysicalMaterial({ color: 0x9a9ba0, metalness: 1, roughness: 0.22 });
     const lensMat = new THREE.MeshPhysicalMaterial({ color: 0x0b0e16, metalness: 0.2, roughness: 0.03, clearcoat: 1, clearcoatRoughness: 0.02, iridescence: 0.6, iridescenceIOR: 1.6, iridescenceThicknessRange: [200, 500] });
     for (const lens of b.lenses) {
       const lx = bx - lens.position[0], ly = by + lens.position[1];
-      const ring = new THREE.Mesh(geo.lensRing!, ringMat);
+      const ring = new THREE.Mesh(ringGeo, ringMat);
       ring.scale.set(lens.diameter, lens.diameter, 0.0009);
       ring.position.set(lx, ly, back - 0.00045 + 0.0002);
       group.add(ring);
-      const glassLens = new THREE.Mesh(geo.lensGlass!, lensMat);
+      const glassLens = new THREE.Mesh(lensGeo, lensMat);
       glassLens.scale.setScalar(lens.diameter * 0.78);
       glassLens.rotation.y = Math.PI;
       glassLens.position.set(lx, ly, back - 0.0009 + 0.0002 - 0.00002);
       group.add(glassLens);
     }
   }
-
   for (const btn of def.buttons) {
     const size: [number, number, number] = [btn.protrusion * 2, btn.length, btn.thickness];
-    const bg = new RoundedBoxGeometry(size[0], size[1], size[2], 2, Math.min(...size) * 0.45);
-    const m = new THREE.Mesh(bg, bodyMat);
+    const m = shadowed(new THREE.Mesh(cachedGeometry(["btn", size], () => new RoundedBoxGeometry(size[0], size[1], size[2], 2, Math.min(...size) * 0.45)), bodyMat), n);
     m.position.set(btn.side === "left" ? -w / 2 : w / 2, h / 2 - btn.offsetY, 0);
-    m.castShadow = n.castShadow;
     group.add(m);
   }
+  return { group, ...screen };
+}
 
-  return { group, screenMaterial, glareMaterial };
+/** Procedural keyboard texture: key caps on a dark deck. Deterministic (pure drawing). */
+function keyboardTexture(deck: string, keys: string): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = 1024;
+  c.height = 400;
+  const g = c.getContext("2d")!;
+  g.fillStyle = deck;
+  g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = keys;
+  const rows = [
+    { n: 14, h: 0.55 },
+    { n: 14, h: 1 },
+    { n: 14, h: 1 },
+    { n: 13, h: 1 },
+    { n: 12, h: 1 },
+    { n: 10, h: 1 },
+  ];
+  const pad = 10, gap = 8;
+  const unitH = (c.height - 2 * pad - gap * (rows.length - 1)) / rows.reduce((a, r) => a + r.h, 0);
+  let y = pad;
+  rows.forEach((row, ri) => {
+    const hgt = unitH * row.h;
+    const widths = Array.from({ length: row.n }, (_, i) => (ri === 5 && i === 4 ? 5 : ri >= 2 && (i === 0 || i === row.n - 1) ? 1.6 : 1));
+    const total = widths.reduce((a, b) => a + b, 0);
+    const unitW = (c.width - 2 * pad - gap * (row.n - 1)) / total;
+    let x = pad;
+    for (const wu of widths) {
+      const kw = unitW * wu;
+      g.beginPath();
+      g.roundRect(x, y, kw, hgt, 7);
+      g.fill();
+      x += kw + gap;
+    }
+    y += hgt + gap;
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+
+async function buildLaptop(n: PageDevice, def: Extract<PageDevice["def"], { form: "laptop" }>): Promise<DeviceParts> {
+  const { base, lid } = def;
+  const group = new THREE.Group();
+  const bodyMat = bodyMaterialFor(n);
+  // Base: a rounded slab lying flat (its outline in XZ), centered on the origin.
+  const baseGeo = cachedGeometry(["laptopBase", base], () => roundedSlab(base.width, base.depth, base.thickness, base.cornerRadius, Math.min(base.edgeRadius, base.thickness / 2 - 1e-5)).rotateX(-Math.PI / 2));
+  group.add(shadowed(new THREE.Mesh(baseGeo, bodyMat), n));
+
+  const top = base.thickness / 2;
+  const accent = accentColor(n, "#111114");
+  const kb = new THREE.Mesh(
+    cachedGeometry(["kb", def.keyboard], () => roundedRectFlat(def.keyboard.width, def.keyboard.depth, 0.004, 16).rotateX(-Math.PI / 2)),
+    new THREE.MeshStandardMaterial({ map: keyboardTexture(accent, "#" + color(accent).offsetHSL(0, 0, 0.035).getHexString()), roughness: 0.75, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }),
+  );
+  kb.position.set(0, top + 0.00005, def.keyboard.offset);
+  group.add(kb);
+  const tpMat = bodyMat.clone();
+  if (tpMat instanceof THREE.MeshPhysicalMaterial) {
+    tpMat.roughness = Math.min(1, tpMat.roughness + 0.12);
+    tpMat.polygonOffset = true;
+    tpMat.polygonOffsetFactor = -1;
+    tpMat.polygonOffsetUnits = -4;
+  }
+  const tp = new THREE.Mesh(cachedGeometry(["tp", def.trackpad], () => roundedRectFlat(def.trackpad.width, def.trackpad.depth, 0.006, 16).rotateX(-Math.PI / 2)), tpMat);
+  tp.position.set(0, top + 0.00005, def.trackpad.offset);
+  group.add(tp);
+
+  // Lid: pivots on the hinge at the back top edge of the base. Inner face (screen) at z = 0 of the pivot.
+  const pivot = new THREE.Group();
+  pivot.position.set(0, top, -base.depth / 2);
+  group.add(pivot);
+  const le = Math.min(lid.edgeRadius, lid.thickness / 2 - 1e-5);
+  const lidMesh = shadowed(new THREE.Mesh(cachedGeometry(["lid", lid, base.width], () => roundedSlab(base.width, lid.height, lid.thickness, lid.cornerRadius, le)), bodyMat), n);
+  lidMesh.position.set(0, lid.height / 2, -lid.thickness / 2);
+  pivot.add(lidMesh);
+  const screen = await addScreen(pivot, n, { w: base.width - 2 * le, h: lid.height - 2 * le, r: Math.max(lid.cornerRadius - le, 1e-5), centerY: lid.height / 2 }, 0);
+  return { group, ...screen, lid: pivot, defaultLidAngle: def.defaultLidAngle };
+}
+
+async function buildMonitor(n: PageDevice, def: Extract<PageDevice["def"], { form: "monitor" }>): Promise<DeviceParts> {
+  const { width: w, height: h, depth: d, cornerRadius: r, edgeRadius: e } = def.body;
+  const edge = Math.max(0, Math.min(e, d / 2 - 1e-5));
+  const st = def.stand;
+  const group = new THREE.Group();
+  const bodyMat = bodyMaterialFor(n);
+  group.add(shadowed(new THREE.Mesh(cachedGeometry(["panel", def.body], () => roundedSlab(w, h, d, r, edge)), bodyMat), n));
+  const screen = await addScreen(group, n, { w: w - 2 * edge, h: h - 2 * edge, r: Math.max(r - edge, 1e-5), centerY: 0 }, d / 2);
+  const footTop = -h / 2 - st.neckHeight;
+  const neckTop = st.neckAttach;
+  const neckLen = neckTop - footTop;
+  const neckZ = -d / 2 - st.neckDepth / 2 - 0.004;
+  const neck = shadowed(new THREE.Mesh(cachedGeometry(["neck", st, neckLen], () => new RoundedBoxGeometry(st.neckWidth, neckLen, st.neckDepth, 4, Math.min(st.neckDepth / 2 - 1e-4, 0.004))), bodyMat), n);
+  neck.position.set(0, footTop + neckLen / 2, neckZ);
+  group.add(neck);
+  const footGeo = cachedGeometry(["foot", st], () => roundedSlab(st.footWidth, st.footDepth, st.footThickness, 0.02, Math.min(0.002, st.footThickness / 2 - 1e-5)).rotateX(-Math.PI / 2));
+  const foot = shadowed(new THREE.Mesh(footGeo, bodyMat), n);
+  foot.position.set(0, footTop - st.footThickness / 2, neckZ + st.footDepth * 0.2);
+  group.add(foot);
+  return { group, ...screen };
+}
+
+async function buildWatch(n: PageDevice, def: Extract<PageDevice["def"], { form: "watch" }>): Promise<DeviceParts> {
+  const { width: w, height: h, depth: d, cornerRadius: r, edgeRadius: e } = def.body;
+  const edge = Math.max(0, Math.min(e, d / 2 - 1e-5));
+  const group = new THREE.Group();
+  const bodyMat = bodyMaterialFor(n);
+  group.add(shadowed(new THREE.Mesh(cachedGeometry(["watch", def.body], () => roundedSlab(w, h, d, r, edge)), bodyMat), n));
+  const screen = await addScreen(group, n, { w: w - 2 * edge, h: h - 2 * edge, r: Math.max(r - edge, 1e-5), centerY: 0 }, d / 2);
+  const crown = shadowed(new THREE.Mesh(cachedGeometry(["crown", def.crown], () => new THREE.CylinderGeometry(def.crown.diameter / 2, def.crown.diameter / 2, def.crown.length, 32).rotateZ(Math.PI / 2)), bodyMat), n);
+  crown.position.set(w / 2 + def.crown.length / 2 - 0.0003, h / 2 - def.crown.offsetY, 0);
+  group.add(crown);
+
+  // Band: each strap is a chain of segments bending back from the case.
+  const band = def.band;
+  const bandMat = new THREE.MeshPhysicalMaterial({ color: color(accentColor(n, "#202226")), roughness: 0.7, metalness: 0, clearcoat: 0.2 });
+  const segments = 10;
+  const segLen = band.length / segments;
+  const segGeo = cachedGeometry(["bandSeg", band], () => new RoundedBoxGeometry(band.width, segLen * 1.04, band.thickness, 3, band.thickness * 0.45));
+  for (const dir of [1, -1]) {
+    const root = new THREE.Group();
+    root.position.set(0, (dir * h) / 2 - dir * 0.0035, -d / 2 + band.thickness * 0.6);
+    if (dir < 0) root.rotation.z = Math.PI;
+    group.add(root);
+    let pivot: THREE.Object3D = root;
+    for (let i = 0; i < segments; i++) {
+      const joint = new THREE.Group();
+      joint.rotation.x = -((band.curl * DEG) / segments);
+      pivot.add(joint);
+      const seg = shadowed(new THREE.Mesh(segGeo, bandMat), n);
+      seg.position.y = segLen / 2;
+      joint.add(seg);
+      const next = new THREE.Group();
+      next.position.y = segLen;
+      joint.add(next);
+      pivot = next;
+    }
+  }
+  return { group, ...screen };
+}
+
+async function buildDevice(n: PageDevice): Promise<DeviceParts> {
+  const def = n.def;
+  switch (def.form) {
+    case "slab":
+      return buildSlab(n, def);
+    case "laptop":
+      return buildLaptop(n, def);
+    case "monitor":
+      return buildMonitor(n, def);
+    case "watch":
+      return buildWatch(n, def);
+  }
 }
 
 /* ----------------------------------------------------------- primitives */
@@ -374,6 +518,8 @@ interface Built {
   camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   objects: Map<string, THREE.Object3D>;
   screens: Map<string, { screen: THREE.MeshBasicMaterial; glare: THREE.MeshStandardMaterial }>;
+  lids: Map<string, { pivot: THREE.Object3D; defaultAngle: number }>;
+  parents: Map<string, string>;
   lights: Map<string, { light: THREE.Light; spec: Light; target?: THREE.Object3D }>;
   texts: PageText[];
   payload: LoadPayload;
@@ -491,6 +637,7 @@ async function load(payload: LoadPayload): Promise<void> {
 
   const objects = new Map<string, THREE.Object3D>();
   const screens = new Map<string, { screen: THREE.MeshBasicMaterial; glare: THREE.MeshStandardMaterial }>();
+  const lids = new Map<string, { pivot: THREE.Object3D; defaultAngle: number }>();
   const texts: PageText[] = [];
 
   for (const n of payload.nodes as PageNode[]) {
@@ -503,6 +650,7 @@ async function load(payload: LoadPayload): Promise<void> {
       const parts = await buildDevice(n);
       obj = parts.group;
       screens.set(n.id, { screen: parts.screenMaterial, glare: parts.glareMaterial });
+      if (parts.lid) lids.set(n.id, { pivot: parts.lid, defaultAngle: parts.defaultLidAngle ?? 110 });
     } else if (n.kind === "plane") {
       const wrap = new THREE.Group();
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(n.size[0], n.size[1]), makeMaterial(n.material));
@@ -520,6 +668,7 @@ async function load(payload: LoadPayload): Promise<void> {
       obj = new THREE.Group();
     }
     obj.name = n.id;
+    obj.userData.nodeId = n.id;
     objects.set(n.id, obj);
   }
   for (const n of payload.nodes) {
@@ -537,7 +686,9 @@ async function load(payload: LoadPayload): Promise<void> {
     lights.set(spec.id, { light, spec, ...(target ? { target } : {}) });
   }
 
-  built = { key: payload.key, scene, camera, objects, screens, lights, texts, payload, fontsReady: loadFonts(payload) };
+  const parents = new Map<string, string>();
+  for (const n of payload.nodes) if (n.kind !== "text2d" && n.parent) parents.set(n.id, n.parent);
+  built = { key: payload.key, scene, camera, objects, screens, lids, parents, lights, texts, payload, fontsReady: loadFonts(payload) };
   for (const v of videoTextures.values()) {
     v.tex.dispose();
     (v.tex.image as ImageBitmap | undefined)?.close?.();
@@ -562,25 +713,31 @@ function applyNode(obj: THREE.Object3D, f: NodeFrame): void {
   obj.quaternion.set(f.quaternion[0], f.quaternion[1], f.quaternion[2], f.quaternion[3]);
   obj.scale.set(f.scale[0], f.scale[1], f.scale[2]);
   obj.visible = f.visible;
-  const op = f.opacity;
-  obj.traverse((o) => {
+}
+
+/** Sets material opacity on the meshes a node owns (not on child nodes, which get their own). */
+function applyOpacity(obj: THREE.Object3D, op: number): void {
+  const visit = (o: THREE.Object3D) => {
     const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (const m of mats) {
-      if (m.userData.isGlare) continue;
-      const base = (m.userData.baseOpacity as number | undefined) ?? 1;
-      const target = base * op;
-      if (m.opacity !== target) {
-        m.opacity = target;
-        const wantTransparent = target < 1 || m instanceof THREE.ShadowMaterial;
-        if (m.transparent !== wantTransparent) {
-          m.transparent = wantTransparent;
-          m.needsUpdate = true;
+    if (mesh.isMesh) {
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const m of mats) {
+        if (m.userData.isGlare) continue;
+        const base = (m.userData.baseOpacity as number | undefined) ?? 1;
+        const target = base * op;
+        if (m.opacity !== target) {
+          m.opacity = target;
+          const wantTransparent = target < 1 || m instanceof THREE.ShadowMaterial;
+          if (m.transparent !== wantTransparent) {
+            m.transparent = wantTransparent;
+            m.needsUpdate = true;
+          }
         }
       }
     }
-  });
+    for (const c of o.children) if (!c.userData.nodeId) visit(c);
+  };
+  visit(obj);
 }
 
 function applyLight(entry: { light: THREE.Light; spec: Light; target?: THREE.Object3D }, f: LightFrame): void {
@@ -852,6 +1009,19 @@ async function render(frame: FrameState, opts: RenderFrameOptions): Promise<stri
     const f = frame.nodes[id];
     if (f) applyNode(obj, f);
   }
+  // Opacity multiplies down the hierarchy: a fading group fades its children.
+  const effective = new Map<string, number>();
+  const opacityOf = (id: string): number => {
+    const hit = effective.get(id);
+    if (hit !== undefined) return hit;
+    const own = frame.nodes[id]?.opacity ?? 1;
+    const parent = b.parents.get(id);
+    const v = own * (parent ? opacityOf(parent) : 1);
+    effective.set(id, v);
+    return v;
+  };
+  for (const [id, obj] of b.objects) applyOpacity(obj, opacityOf(id));
+  for (const [id, mats] of b.screens) mats.glare.userData.nodeOpacity = opacityOf(id);
   for (const [id, url] of Object.entries(opts.screenFrames ?? {})) {
     const mats = b.screens.get(id);
     if (!mats) continue;
@@ -872,8 +1042,12 @@ async function render(frame: FrameState, opts: RenderFrameOptions): Promise<stri
     if (!f) continue;
     const base = mats.screen.userData.baseColor as THREE.Color;
     mats.screen.color.copy(base).multiplyScalar(f.screenBrightness ?? 1);
-    mats.glare.opacity = (f.screenGlare ?? 0.25) * f.opacity;
+    mats.glare.opacity = (f.screenGlare ?? 0.25) * ((mats.glare.userData.nodeOpacity as number | undefined) ?? f.opacity);
     mats.glare.visible = (f.screenGlare ?? 0.25) > 0;
+  }
+  for (const [id, lid] of b.lids) {
+    const angle = frame.nodes[id]?.lidAngle ?? lid.defaultAngle;
+    lid.pivot.rotation.x = (90 - angle) * DEG;
   }
   for (const [id, entry] of b.lights) {
     const f = frame.lights[id];

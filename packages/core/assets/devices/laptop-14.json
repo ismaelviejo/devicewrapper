@@ -1,0 +1,20 @@
+{
+  "id": "laptop-14",
+  "name": "14-inch laptop",
+  "category": "laptop",
+  "form": "laptop",
+  "description": "Generic 14-inch laptop: thin bezels with a top notch, full keyboard and large trackpad. 312.6 x 221.2 mm, 15.5 mm closed. Set lidAngle on the node (default 110).",
+  "base": { "width": 0.3126, "depth": 0.2212, "thickness": 0.0098, "cornerRadius": 0.012, "edgeRadius": 0.0026 },
+  "lid": { "height": 0.2195, "thickness": 0.0057, "cornerRadius": 0.012, "edgeRadius": 0.0015 },
+  "screen": { "width": 0.3020, "height": 0.1962, "cornerRadius": 0.0070, "offset": [0, 0.0045], "pixels": [3024, 1964] },
+  "cutout": { "type": "notch", "width": 0.0300, "height": 0.0062, "offsetY": 0 },
+  "keyboard": { "width": 0.2700, "depth": 0.1050, "offset": -0.0330 },
+  "trackpad": { "width": 0.1320, "depth": 0.0820, "offset": 0.0610 },
+  "defaultLidAngle": 110,
+  "bezelColor": "#050505",
+  "colors": [
+    { "name": "space-black", "body": "#2f3034", "finish": "metal", "accent": "#141416" },
+    { "name": "silver", "body": "#d8d9db", "finish": "metal", "accent": "#1c1c1e" },
+    { "name": "midnight", "body": "#232a36", "finish": "metal", "accent": "#12151b" }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "floating-phone",
+  "title": "Floating phone (video)",
+  "description": "A phone hovering and slowly turning on a soft gradient. 6-second loopable motion.",
+  "screens": 1,
+  "brief": {
+    "preset": "1080p",
+    "duration": 6,
+    "style": "soft-gradient",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      }
+    ],
+    "layout": "hero",
+    "motion": [
+      "slow-turn",
+      "float"
+    ]
+  },
+  "variables": []
+}

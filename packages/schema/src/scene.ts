@@ -257,6 +257,7 @@ export const DeviceNode = z.object({
   model: z.string().min(1).describe("Device model ID, e.g. 'phone-modern'. See the devices resource."),
   color: z.string().optional().describe("Named color variant of the model (e.g. 'black') or a hex color. Defaults to the model's first variant."),
   material: MaterialRef.optional().describe("Overrides the device body material."),
+  lidAngle: z.number().min(0).max(180).optional().describe("Laptops only: how far the lid is open, degrees (0 closed, 90 upright, 180 flat). Default: the model's (≈110)."),
   screen: Screen.default({
     source: { type: "color", color: "#000000" },
     fit: "cover",

@@ -194,6 +194,64 @@ describe("video", () => {
   });
 });
 
+describe("device forms and templates", () => {
+  it("renders laptop, monitor, watch and tablet templates", async () => {
+    await writeScreenshot(join(root, "screens/web.png"), 604, 392, "#3d5afe");
+    const { composeScene, expandTemplate, loadTemplates } = await import("@devicewrapper/core");
+    const templates = loadTemplates();
+    for (const name of ["hero-laptop", "desktop-setup", "watch-hero", "phone-tablet"]) {
+      const tpl = templates.get(name)!;
+      const screens = (tpl.brief.devices as Array<{ model: string }>).map((d) => (/laptop|monitor/.test(d.model) ? "screens/web.png" : "screens/home.png"));
+      const scene = await composeScene(engine.ws, engine.devices, expandTemplate(tpl, screens), name);
+      compareGolden(`template-${name}`, await render({ ...scene, canvas: { ...scene.canvas, width: 320, height: 180 } }));
+    }
+  });
+
+  it("laptop lid animates via lidAngle", async () => {
+    const { composeScene, expandTemplate, loadTemplates } = await import("@devicewrapper/core");
+    const tpl = loadTemplates().get("laptop-reveal")!;
+    const scene = await composeScene(engine.ws, engine.devices, expandTemplate(tpl, ["screens/web.png"]), "reveal");
+    const s = { ...scene, canvas: { ...scene.canvas, width: 320, height: 180 } };
+    const closed = await render({ ...s, render: { ...s.render, time: 0 } });
+    const open = await render({ ...s, render: { ...s.render, time: 3 } });
+    expect(sha256(closed)).not.toBe(sha256(open));
+    compareGolden("laptop-reveal-t3", open);
+  });
+});
+
+describe("resilience", () => {
+  it("recovers from a renderer page crash in the middle of a video", async () => {
+    let s = await heroScene();
+    s = { ...s, id: "crashy", canvas: { ...s.canvas, width: 160, height: 90, fps: 10, duration: 2 } };
+    s = setTrack(s, { target: "phone", property: "rotation", keyframes: [{ t: 0, value: [0, -30, 0] }, { t: 2, value: [0, 30, 0] }] });
+    engine.store.save(s);
+    const job = engine.jobs.create({ sceneId: "crashy", format: "mp4", supersample: 1 });
+    // Crash the page once, a little after the render has started.
+    const internals = backend as unknown as { slots: Array<{ page: { sessionId: string } }>; browser: { send(m: string, p: object, sid?: string): Promise<unknown> } };
+    let crashed = false;
+    const timer = setInterval(() => {
+      const j = engine.jobs.get(job.jobId);
+      if (!crashed && j.status === "running" && j.frames.done >= 0) {
+        const sid = internals.slots[0]?.page.sessionId;
+        if (sid) {
+          crashed = true;
+          void internals.browser.send("Page.crash", {}, sid).catch(() => undefined);
+        }
+      }
+    }, 300);
+    const done = await engine.jobs.wait(job.jobId, 170000);
+    clearInterval(timer);
+    expect(crashed).toBe(true);
+    expect(done.status, done.error?.message).toBe("completed");
+    expect(done.frames).toEqual({ done: 20, total: 20 });
+    // The recovered video is identical to a clean render.
+    const clean = engine.jobs.create({ sceneId: "crashy", format: "mp4", supersample: 1, output: "renders/clean.mp4" });
+    const cleanDone = await engine.jobs.wait(clean.jobId, 170000);
+    const framemd5 = (path: string) => sha256(execFileSync("ffmpeg", ["-v", "error", "-i", path, "-f", "framemd5", "-"]).toString());
+    expect(framemd5(join(root, done.output))).toBe(framemd5(join(root, cleanDone.output)));
+  });
+});
+
 describe("MCP render tools with a real renderer", () => {
   it("render_preview returns an inline PNG and render writes the file", async () => {
     const server = createMcpServer(engine);

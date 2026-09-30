@@ -1,0 +1,26 @@
+{
+  "name": "light-product-shot",
+  "title": "Light product shot",
+  "description": "One phone straight on, on pure white with a crisp shadow. Store listings and press kits.",
+  "screens": 1,
+  "brief": {
+    "preset": "1080p",
+    "style": "product-white",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      }
+    ],
+    "layout": "hero",
+    "layoutOptions": {
+      "angle": 0
+    },
+    "camera": {
+      "shot": "front",
+      "focalLength": 85,
+      "padding": 0.2
+    }
+  },
+  "variables": []
+}

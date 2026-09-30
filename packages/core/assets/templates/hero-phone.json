@@ -1,0 +1,18 @@
+{
+  "name": "hero-phone",
+  "title": "Hero phone",
+  "description": "One phone, slightly turned, on a soft light studio background. The classic app hero.",
+  "screens": 1,
+  "brief": {
+    "preset": "1080p",
+    "style": "light-studio",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      }
+    ],
+    "layout": "hero"
+  },
+  "variables": []
+}

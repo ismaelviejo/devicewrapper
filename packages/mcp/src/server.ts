@@ -5,6 +5,7 @@ import type { Engine } from "@devicewrapper/jobs";
 import { INSTRUCTIONS } from "./guide.js";
 import { registerResources } from "./resources.js";
 import { registerAnimationTools } from "./tools/animation.js";
+import { registerComposeTools } from "./tools/compose.js";
 import { registerLookTools } from "./tools/look.js";
 import { registerNodeTools } from "./tools/nodes.js";
 import { registerRenderTools } from "./tools/render.js";
@@ -20,6 +21,7 @@ export function createMcpServer(engine: Engine): McpServer {
     { instructions: INSTRUCTIONS, capabilities: { logging: {} } },
   );
   registerSceneTools(server, engine);
+  registerComposeTools(server, engine);
   registerNodeTools(server, engine);
   registerLookTools(server, engine);
   registerAnimationTools(server, engine);

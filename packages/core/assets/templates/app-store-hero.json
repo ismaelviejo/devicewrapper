@@ -1,0 +1,41 @@
+{
+  "name": "app-store-hero",
+  "title": "App Store hero",
+  "description": "Portrait App Store screenshot (6.9\" size): headline on top, one large phone below.",
+  "screens": 1,
+  "variables": [
+    "headline"
+  ],
+  "brief": {
+    "preset": "app-store-6.9",
+    "style": "soft-gradient",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "{{screen1}}"
+      }
+    ],
+    "layout": "hero",
+    "layoutOptions": {
+      "angle": 0
+    },
+    "camera": {
+      "shot": "front",
+      "focalLength": 85,
+      "padding": 0.32,
+      "shift": [
+        0,
+        0.085
+      ]
+    },
+    "text": [
+      {
+        "content": "{{headline}}",
+        "position": "top"
+      }
+    ],
+    "variables": {
+      "headline": "Your app, beautifully"
+    }
+  }
+}

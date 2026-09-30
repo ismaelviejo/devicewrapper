@@ -1,0 +1,38 @@
+{
+  "name": "laptop-reveal",
+  "title": "Laptop reveal (video)",
+  "description": "A laptop opens its lid while the camera pushes in. 5 seconds.",
+  "screens": 1,
+  "brief": {
+    "preset": "1080p",
+    "duration": 5,
+    "style": "dark-studio",
+    "devices": [
+      {
+        "model": "laptop-14",
+        "screen": "{{screen1}}"
+      }
+    ],
+    "layout": "hero",
+    "layoutOptions": {
+      "angle": 10
+    },
+    "camera": {
+      "shot": "hero",
+      "focalLength": 45
+    },
+    "motion": [
+      {
+        "preset": "lid-open",
+        "duration": 2.2
+      },
+      {
+        "preset": "screen-on",
+        "start": 1.6,
+        "duration": 0.6
+      },
+      "push-in"
+    ]
+  },
+  "variables": []
+}
