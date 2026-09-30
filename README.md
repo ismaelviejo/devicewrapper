@@ -2,9 +2,14 @@
 
 Headless 3D device mockups for AI agents. An MCP server that lets Claude Code (or any MCP client) build scenes with phones, tablets, laptops, monitors and watches, put your app screenshots or screen recordings on their screens, light, frame and animate them, and render stills and videos. No UI.
 
-<p align="center"><img src="tests/golden/reference/dark-trio-en.png" width="480" alt="Three phones rendered by devicewrapper"></p>
+<p align="center">
+  <img src="docs/images/trio-glossy.jpg" width="49%" alt="Three phones on a glossy black table">
+  <img src="docs/images/showcase.jpg" width="49%" alt="Laptop, tablet and phone">
+  <img src="docs/images/watch-sunset.jpg" width="49%" alt="Watch and phone at sunset">
+  <img src="docs/images/stack-dof.jpg" width="49%" alt="Stacked phones with depth of field">
+</p>
 
-> **Status:** Phases 1–6 of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, stills and video (MP4, WebM, ProRes, with transparency), six device models, layouts, styles, motion presets, 15 templates, one-call `compose_scene`, localized text, depth of field, bloom, reflective floors and studio/softbox/sunset environments. Next: Phase 7 (docs). See [DECISIONS.md](DECISIONS.md) for design choices and current limitations.
+> **Status:** all seven phases of [PLAN.md](PLAN.md) are done: scene format, engine, MCP server, stills and video (MP4, WebM, ProRes, with transparency), six device models, layouts, styles, motion presets, 15 templates, one-call `compose_scene`, localized text, depth of field, bloom, reflective floors, and docs checked by an agent eval. Not yet on npm (see [Publishing](docs/using.md#publishing)). Design choices and limitations: [DECISIONS.md](DECISIONS.md).
 
 ## Setup
 
@@ -19,6 +24,8 @@ pnpm setup        # downloads the headless Chromium used for rendering
 ```
 
 ## Use it from Claude Code in another project
+
+Full guide: [docs/using.md](docs/using.md) (other MCP clients, configuration, security, CLI, library use, Docker).
 
 From the project you want mockups in:
 
@@ -66,6 +73,8 @@ Then ask Claude things like:
 | Assets & text | `import_asset`, `set_variables` (localization) |
 | Rendering | `render_preview` (returns the image inline), `render`, `get_render_job`, `list_render_jobs`, `cancel_render_job` |
 
+Full reference: [tools](docs/tools.md), [resources](docs/resources.md), [catalog](docs/catalog.md), [examples](docs/examples.md).
+
 **Resources:** `devicewrapper://guide` (workflow and composition tips), `schema/scene` (JSON Schema), `devices`, `presets`, `animatable`, `capabilities`, and every saved scene at `devicewrapper://scenes/{id}`.
 
 **Devices:** `phone-modern`, `phone-classic`, `tablet`, `laptop-14` (animatable lid), `monitor-27`, `watch-45`, each with color variants. Add your own with a JSON file in `.devicewrapper/devices/`.
@@ -108,8 +117,10 @@ pnpm typecheck
 pnpm test:unit        # fast, no browser
 pnpm test:golden      # renders and compares against tests/golden/reference
 pnpm test             # both
+pnpm docs             # regenerate docs/tools.md, resources.md, catalog.md from the live server
+node scripts/gen-examples.mjs   # re-render the example gallery
 ```
 
 Rendering is deterministic by default (`DEVICEWRAPPER_RENDER_MODE=deterministic`, CPU WebGL), so golden tests compare pixels. `docker/Dockerfile` builds a pinned render environment.
 
-See [PLAN.md](PLAN.md) for the roadmap, [DECISIONS.md](DECISIONS.md) for design choices, and [CLAUDE.md](CLAUDE.md) for the working rules.
+Docs index: [docs/](docs/README.md). See [PLAN.md](PLAN.md) for the roadmap, [DECISIONS.md](DECISIONS.md) for design choices, and [CLAUDE.md](CLAUDE.md) for the working rules.

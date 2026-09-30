@@ -178,9 +178,10 @@ function lookBasis(dirToCamera: Vec3, roll: number): { right: Vec3; up: Vec3; fo
 export function frameTargets(scene: Scene, devices: DeviceRegistry, opts: FrameTargetsOptions): FrameResult {
   const pts = worldPoints(scene, opts.targets, devices);
   if (opts.reflection && pts.length) {
-    // The reflection stays visible for roughly the lower (1.25 - fade) / 2 of each object's height.
+    // The renderer fades the reflection out over (1.1 - fade) of the objects' height; the last part of
+    // that smoothstep is nearly invisible, so frame about 80% of it.
     const { floorY, fade } = opts.reflection;
-    const keep = Math.max(0, Math.min(1, (1.25 - fade) / 2));
+    const keep = Math.max(0, Math.min(1, (1.1 - fade) * 0.8));
     const mirrored = pts.filter((p) => p[1] > floorY).map((p): Vec3 => [p[0], floorY - (p[1] - floorY) * keep, p[2]]);
     pts.push(...mirrored);
   }

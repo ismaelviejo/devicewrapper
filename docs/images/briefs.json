@@ -1,0 +1,141 @@
+{
+  "hero-dark": {
+    "preset": "1080p",
+    "style": "dark-studio",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "color": "black",
+        "screen": "screens/workout.png"
+      }
+    ],
+    "text": [
+      {
+        "content": "Train smarter",
+        "position": "top"
+      }
+    ]
+  },
+  "trio-glossy": {
+    "preset": "1080p",
+    "style": "glossy-dark",
+    "layout": "arc",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "screens/home.png"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "screens/workout.png"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "screens/stats.png"
+      }
+    ]
+  },
+  "fan": {
+    "preset": "square",
+    "style": "light-studio",
+    "layout": "fan",
+    "devices": [
+      {
+        "model": "phone-modern",
+        "color": "silver",
+        "screen": "screens/home.png"
+      },
+      {
+        "model": "phone-modern",
+        "color": "silver",
+        "screen": "screens/workout.png"
+      },
+      {
+        "model": "phone-modern",
+        "color": "silver",
+        "screen": "screens/stats.png"
+      }
+    ]
+  },
+  "showcase": {
+    "preset": "1080p",
+    "style": "product-white",
+    "layout": "showcase",
+    "devices": [
+      {
+        "model": "laptop-14",
+        "color": "silver",
+        "screen": "screens/dashboard.png"
+      },
+      {
+        "model": "tablet",
+        "screen": "screens/tablet.png"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "screens/home.png"
+      }
+    ]
+  },
+  "watch-sunset": {
+    "preset": "1080p",
+    "style": "sunset",
+    "layout": "row",
+    "devices": [
+      {
+        "model": "watch-45",
+        "screen": "screens/watch.png"
+      },
+      {
+        "model": "phone-modern",
+        "color": "natural",
+        "screen": "screens/workout.png"
+      }
+    ],
+    "text": [
+      {
+        "content": "Pulse — now on your wrist",
+        "position": "bottom"
+      }
+    ]
+  },
+  "stack-dof": {
+    "preset": "1080p",
+    "style": "soft-gradient",
+    "layout": "stack",
+    "camera": {
+      "focalLength": 85,
+      "dof": 0.5
+    },
+    "devices": [
+      {
+        "model": "phone-modern",
+        "screen": "screens/stats.png"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "screens/workout.png"
+      },
+      {
+        "model": "phone-modern",
+        "screen": "screens/home.png"
+      }
+    ]
+  },
+  "app-store": {
+    "template": "app-store-hero",
+    "screens": [
+      "screens/stats.png"
+    ],
+    "variables": {
+      "headline": "Your runs, beautifully tracked"
+    }
+  },
+  "laptop-reveal": {
+    "template": "laptop-reveal",
+    "screens": [
+      "screens/dashboard.png"
+    ],
+    "style": "glossy-dark"
+  }
+}

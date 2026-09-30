@@ -126,6 +126,10 @@ Choices made while building, with the reason for each. Where the implementation 
 
 **`target: 'all'` for motions** groups the top-level devices under an `arrangement` group (created once, positions and existing position tracks converted to group space) so a fan or row can turn as one.
 
+**Docs.** `docs/` has hand-written guides (using it in other projects, scene format, templates and custom devices, rendering, architecture) and generated references (tools, resources, catalog). CI fails if the generated docs are stale. Every code sample in the guides was run: the scene-format example validates and renders, the custom template and device examples load and render, the library snippet renders. The example gallery is rendered by `scripts/gen-examples.mjs` from the briefs shown next to each image.
+
+**Reflection fade uses the real mirror geometry.** The first version assumed the reflection of height h lands h / tan(elevation) in front of the object, which is only true for a high camera; with a low camera the fade barely started. It now uses the exact crossing point D·h / (Hc + h), and the framing keeps the same visible fraction.
+
 **npm publishing is ready but not done:** there are no npm credentials in this environment. The packages build with correct `files`/`exports`; see the README for publishing and for using the server from other projects without publishing.
 
 ### Known limitations after Phase 6

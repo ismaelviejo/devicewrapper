@@ -213,11 +213,17 @@ function makeReflectiveFloor(size: [number, number], m: Extract<Material, { type
       if (!box.isEmpty() && dir.length() > 1e-4) {
         dir.normalize();
         const height = Math.max(0, box.max.y - floorY);
-        const tanElev = Math.max(0.05, Math.tan(Math.asin(Math.min(1, Math.max(0, -fwd.y)))));
         // Front edge of the objects' footprint along the fade direction.
         const corners = [box.min.x, box.max.x].flatMap((x) => [box.min.z, box.max.z].map((z) => x * dir.x + z * dir.y));
-        mat.uniforms.fadeStart!.value = Math.max(...corners);
-        mat.uniforms.fadeLen!.value = Math.max(1e-3, (height * (1.25 - m.fade)) / tanElev);
+        const front = Math.max(...corners);
+        // The mirror image of a point at height h shows on the floor where the camera ray to (−h) crosses
+        // y = 0: at distance D·h / (Hc + h) toward a camera Hc above the floor and D away horizontally.
+        const camPos = cam.getWorldPosition(new THREE.Vector3());
+        const hc = Math.max(1e-3, camPos.y - floorY);
+        const d = Math.max(1e-3, camPos.x * dir.x + camPos.z * dir.y - front);
+        const hf = height * (1.1 - m.fade);
+        mat.uniforms.fadeStart!.value = front;
+        mat.uniforms.fadeLen!.value = Math.max(1e-3, (d * hf) / (hc + hf));
         (mat.uniforms.fadeDir!.value as THREE.Vector2).copy(dir);
       } else mat.uniforms.fadeLen!.value = 0;
     } else mat.uniforms.fadeLen!.value = 0;

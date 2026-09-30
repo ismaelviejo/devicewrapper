@@ -324,7 +324,8 @@ export function setCamera(scene: Scene, opts: SetCameraOptions, devices: DeviceR
       type: cam.type,
       roll: cam.roll,
     });
-    cam = { ...cam, position: r.position, target: r.target, orthoHeight: r.orthoHeight };
+    const r6 = (v: Vec3): Vec3 => v.map((x) => Math.round(x * 1e6) / 1e6) as Vec3;
+    cam = { ...cam, position: r6(r.position), target: r6(r.target), orthoHeight: r.orthoHeight };
     const shift = opts.frame.shift;
     if (shift && (shift[0] || shift[1])) {
       // Move the subject within the frame: +y moves it down (room for a headline), +x moves it right.
@@ -337,7 +338,7 @@ export function setCamera(scene: Scene, opts: SetCameraOptions, devices: DeviceR
       const visH = cam.type === "orthographic" ? cam.orthoHeight : 2 * dist * Math.tan((cam.fov * Math.PI) / 360);
       const visW = visH * (s.canvas.width / s.canvas.height);
       const move = v3.add(v3.scale(camUp, shift[1] * visH), v3.scale(right, -shift[0] * visW));
-      cam = { ...cam, position: v3.add(cam.position, move), target: v3.add(cam.target, move) };
+      cam = { ...cam, position: r6(v3.add(cam.position, move)), target: r6(v3.add(cam.target, move)) };
     }
   }
   if (cam.position.every((v, k) => Math.abs(v - cam.target[k]!) < 1e-9)) {
