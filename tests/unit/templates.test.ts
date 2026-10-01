@@ -165,4 +165,11 @@ describe("saved templates", () => {
     }
     expect(validateScene(r.scene, { devices }).valid).toBe(true);
   });
+
+  it("a motion clip keeps only the text that changes in its window", () => {
+    const s = reelScene();
+    const kinds = (range: [number, number]) => sceneToMotionClip(s, devices, { range }).clip.tracks.map((t) => `${t.role}.${t.property}`);
+    expect(kinds([0, 0.75])).not.toContain("text1.opacity"); // headline held hidden: not part of the movement
+    expect(kinds([1.5, 2.5])).toContain("text1.opacity"); // headline fades in
+  });
 });

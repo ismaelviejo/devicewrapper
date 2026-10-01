@@ -270,8 +270,8 @@ export interface MotionClipOptions {
 const r6 = (v: number) => Math.round(v * 1e6) / 1e6;
 
 /**
- * Cuts one movement out of a scene: the camera, the target device and the text tracks over a time
- * window. Camera points are stored in the device's frame, in units of its screen height, and device
+ * Cuts one movement out of a scene: the camera, the target device and the text tracks that change
+ * over a time window. Camera points are stored in the device's frame, in units of its screen height, and device
  * position / rotation as offsets from its base pose, so the clip fits any device placement and size.
  */
 export function sceneToMotionClip(scene: Scene, devices: DeviceRegistry, opts: MotionClipOptions = {}): { clip: MotionClip; warnings: string[] } {
@@ -304,7 +304,11 @@ export function sceneToMotionClip(scene: Scene, devices: DeviceRegistry, opts: M
       tracks.push({ role: "device", property: tr.property, relative: rel, interpolation: tr.interpolation, keyframes: rel ? kfs().map((k) => ({ ...k, value: map(k.value as Vec3) })) : kfs() });
     } else if (texts.includes(tr.target)) {
       if (opts.includeText === false) continue;
-      tracks.push({ role: `text${texts.indexOf(tr.target) + 1}`, property: tr.property, relative: false, interpolation: tr.interpolation, keyframes: kfs() });
+      // Only text that changes in the window is part of the movement; a constant (e.g. a headline held
+      // hidden) would otherwise stick on the target scene after the clip ends.
+      const k = kfs();
+      if (k.every((x) => JSON.stringify(x.value) === JSON.stringify(k[0]!.value))) continue;
+      tracks.push({ role: `text${texts.indexOf(tr.target) + 1}`, property: tr.property, relative: false, interpolation: tr.interpolation, keyframes: k });
     } else skipped.add(tr.target);
   }
   if (opts.includeCamera !== false) {
