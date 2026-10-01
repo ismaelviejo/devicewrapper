@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import PQueue from "p-queue";
 import {
   DwError,
+  buildAudioPlan,
   evaluateFrame,
   frameCount,
   isDwError,
@@ -35,6 +36,8 @@ export interface RenderRequest {
   quality?: number;
   /** Output path (workspace-relative). Default: <outputDir>/<sceneId>/<sceneId>[-<locale>].<ext> */
   output?: string;
+  /** Video renders: false = silent even if the scene has sound. */
+  audio?: boolean;
 }
 
 export interface RenderJob {
@@ -281,6 +284,10 @@ export class JobManager {
       } else {
         const fps = scene.canvas.fps;
         const start = Math.round((request.start ?? 0) * fps);
+        const audio =
+          request.audio === false
+            ? null
+            : buildAudioPlan(scene, { start: start / fps, end: (start + job.frames.total) / fps }, (path) => this.engine.ws.resolveRead(path, "Audio asset"));
         await this.backend.renderVideo!(
           resolved,
           (i) => evaluateFrame(scene, i / fps),
@@ -295,6 +302,7 @@ export class JobManager {
             startFrame: start,
             endFrame: start + job.frames.total,
             outputPath: job.outputAbs,
+            ...(audio ? { audio } : {}),
             onProgress: (done, total) => {
               job.frames = { done, total };
               job.progress = Math.round((done / total) * 1000) / 10;

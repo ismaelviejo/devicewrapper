@@ -134,6 +134,18 @@ Choices made while building, with the reason for each. Where the implementation 
 
 **npm publishing is ready but not done:** there are no npm credentials in this environment. The packages build with correct `files`/`exports`; see the README for publishing and for using the server from other projects without publishing.
 
+## After Phase 7: sound effects
+
+**Sound comes from the same library as the Tactil design system.** Tactil's Storybook (Audio → Sound Library) is built on [UI SFX](https://uisfx.com) and commits only its Minimal pack. devicewrapper depends on the published `uisfx` npm package (pinned, 13 MB) instead of copying files, which brings all 12 packs and the per-cue metadata (duration, category, intended level). Audio is CC0, so it can ship and be used in commercial videos. Default pack is `minimal`, matching Tactil; `cinematic` and `glass` are the obvious choices for louder launch videos.
+
+**Motions own their sounds.** Which cue a motion plays, and when, is data (`assets/presets/motion-sounds.json`): swipe for spins, slides and tilts, open for rises and fades in, drop at the moment a drop-in lands (37% into its easeOutBack), wake for screen-on, open/close for lids. Camera moves, float and slow-turn stay silent: constant motion with a sound on it gets tiring. Cues carry a `source` so re-applying a motion replaces its own cues and removing a device removes them, and staggered entrances get one cue per device. `target: 'all'` gives a whole arrangement one sound.
+
+**Sound is on by default for videos.** The point of the feature is videos that come out with sound; `sound: false` on compose/apply_motion, `set_audio { enabled: false }` or `render { audio: false }` turn it off at each level. Stills are unaffected.
+
+**Mixing is a second FFmpeg pass that copies the video.** The frame pipeline stays exactly as it was; the soundtrack is built with one filter graph (trim, resample, scale, delay, mix, pad/trim to the exact length, limiter) and muxed with `-c:v copy`, so it costs a second or two and can't change a pixel. Bit-exact flags keep the audio deterministic. Core builds the clip list (pure, unit-tested); only the renderer runs FFmpeg.
+
+**Saved movements keep their sound.** A motion clip (`save_template { kind: 'motion' }`) stores the built-in sound cues in its window as `pack/cue`, so a clip saved from a Glass scene still swipes in Glass when it's replayed elsewhere; replaying at the same start replaces its cues. Cues from your own files aren't saved in clips (their paths are workspace-specific); scene templates keep the whole audio section.
+
 ### Known limitations after Phase 6
 
 - Reflections show only the 3D scene, not the background, and there is no real roughness-based blur that grows with distance (blur is uniform).

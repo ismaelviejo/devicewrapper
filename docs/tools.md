@@ -2,7 +2,7 @@
 
 _Generated from the live server by `pnpm run docs:gen` — do not edit by hand._
 
-32 tools. Every tool returns JSON text; errors come back with `isError: true` and `{ error: { code, message, path?, hint? } }`.
+33 tools. Every tool returns JSON text; errors come back with `isError: true` and `{ error: { code, message, path?, hint? } }`.
 
 - **Compose (start here):** [`compose_scene`](#compose_scene), [`list_templates`](#list_templates), [`apply_layout`](#apply_layout), [`apply_style`](#apply_style), [`apply_motion`](#apply_motion)
 - **Scenes:** [`create_scene`](#create_scene), [`get_scene`](#get_scene), [`list_scenes`](#list_scenes), [`update_scene`](#update_scene), [`duplicate_scene`](#duplicate_scene), [`delete_scene`](#delete_scene), [`validate_scene`](#validate_scene), [`import_scene`](#import_scene), [`export_scene`](#export_scene)
@@ -10,7 +10,7 @@ _Generated from the live server by `pnpm run docs:gen` — do not edit by hand._
 - **Look:** [`set_camera`](#set_camera), [`set_lights`](#set_lights), [`set_background`](#set_background), [`set_effects`](#set_effects), [`set_variables`](#set_variables)
 - **Animation:** [`set_track`](#set_track), [`remove_track`](#remove_track)
 - **Rendering:** [`render_preview`](#render_preview), [`render`](#render), [`get_render_job`](#get_render_job), [`list_render_jobs`](#list_render_jobs), [`cancel_render_job`](#cancel_render_job)
-- **Other:** [`save_template`](#save_template)
+- **Other:** [`save_template`](#save_template), [`set_audio`](#set_audio)
 
 ## Compose (start here)
 
@@ -23,6 +23,7 @@ text [{ content, position: top|bottom|center|top-left|…, size?, weight?, color
 Text: size is in canvas pixels (scaled with the output size; default ~7% of the short side for a top headline, ~4% for a bottom line); weight 100–900. The camera leaves room for text automatically.
 Localization: text content may use {{variables}}; variables: { headline: 'Train smarter' }, locales: { es: { headline: 'Entrena mejor' } }; then render { locales: ['en', 'es'] }.
 motion: preset names as in apply_motion (e.g. 'float', 'slow-turn', 'push-in'), or objects { preset, target?, start?, duration?, amount? }; target 'all' moves the whole arrangement as one unit.
+sound: motions add matching sound effects to videos by default (Minimal pack); pass a pack name like 'cinematic' for a bigger sound, or false for silence.
 duration sets the timeline length; whole-timeline motions stretch to it, entrances (rise, lid-open, …) keep their natural length.
 Styles: light-studio, dark-studio, soft-gradient, midnight-neon, sunset, mint, product-white, transparent, glossy-dark, glossy-light. Layouts: hero, row, arc, fan, stack, grid, circle, showcase (default picked from the devices).
 Templates (see list_templates): pass template + screens (filled into the {{screenN}} slots in order) + variables. Brief templates also take any brief field as an override;
@@ -53,6 +54,7 @@ Next: render_preview to look at it, then adjust (update_node, set_camera, set_li
 | `locales` | object |  |  |  |
 | `motion` | "turntable" \| "slow-turn" \| "float" \| "rise" \| … (25 values) \| { preset, target?, start?, duration?, amount?, easing?, stagger? } \| ("turntable" \| "slow-turn" \| "float" \| "rise" \| … (25 values) \| { preset, target?, start?, duration?, amount?, easing?, stagger? })[] |  |  |  |
 | `render` | object |  |  | Default render settings (format, quality, supersample, transparent, time). |
+| `sound` | boolean \| string |  |  | Sound effects for motions in videos: true (default, 'minimal' pack), false for silent, or a pack name like 'cinematic'. |
 
 ### list_templates
 
@@ -109,6 +111,7 @@ Presets: turntable (Full spin around the vertical axis (amount = degrees, defaul
 target 'all': every device moves as one unit (they are grouped under 'arrangement'); use it to turn or orbit a fan/arc/row as a whole, since without it turntable/slow-turn spin each device on its own axis.
 Timing: start/duration in seconds (defaults: whole timeline; entrances ~1.2 s at the start; exits at the end). amount scales the motion.
 Motions layer: if the property is already animated (e.g. float then rise), the device is wrapped in a group and the group is animated (stack: 'auto'; use 'replace' to overwrite).
+Device motions add a matching sound effect for videos (sound: false to skip; change the pack or mix with set_audio).
 The timeline is extended if a motion ends after it. Example: { sceneId: 'hero', preset: 'orbit', amount: 40 }
 
 | Parameter | Type | Required | Default | Description |
@@ -130,6 +133,7 @@ The timeline is extended if a motion ends after it. Example: { sceneId: 'hero', 
 | `shot` | string |  |  | reframe: auto-frame with this shot instead of returning to the base camera. |
 | `padding` | number |  |  | reframe: framing padding. |
 | `shift` | [number, number] |  |  | reframe: [x, y] subject shift in the frame. |
+| `sound` | boolean |  | `true` | Add the motion's sound effect for videos (e.g. swipe for spins and slides). Re-applying replaces its earlier cues. |
 
 ## Scenes
 
@@ -504,6 +508,7 @@ time picks the moment on the timeline (seconds). Also saved to <output>/<sceneId
 Render final output as a background job. Stills: png | jpeg | webp. Video: mp4 (H.264) | webm (VP9) | mov (ProRes 4444, supports alpha).
 Size defaults to the scene canvas; pass preset ('1080p', '4k', …) or width/height (aspect is kept if you pass only one).
 locales: ['en', 'es', 'fr'] renders one output per language (one job each).
+Videos include the scene's sound (motion effects, cues, music; AAC in MP4, Opus in WebM, PCM in MOV). audio: false renders silent.
 Returns job IDs immediately. `wait` (max 50 s) blocks until the jobs finish or the time runs out; stills usually finish in a few seconds.
 Videos take longer: CPU rendering costs roughly 0.5–2 s per frame (more at 4K, with supersample 2+, depth of field or bloom). Poll get_render_job with wait: 45 until completed. Draft with supersample: 1 and a small width first.
 Jobs run inside this server process: keep the server running until they complete (a server restart marks running jobs INTERRUPTED).
@@ -526,6 +531,7 @@ Example: { sceneId: 'hero', format: 'png', preset: '4k', wait: 45 }
 | `supersample` | integer |  |  | Default: scene render.supersample (2). |
 | `quality` | integer |  |  |  |
 | `output` | string |  |  | Output path. With locales, include {locale} in it, e.g. 'out/hero-{locale}.png'. |
+| `audio` | boolean |  |  | Video: include the scene's sound (default true when it has any). false = silent. |
 | `wait` | number |  | `0` | Seconds (max 50) to wait for completion before returning. MCP clients time out at ~60s, so poll get_render_job for longer renders. |
 
 ### get_render_job
@@ -585,3 +591,22 @@ Example: { sceneId: 'reel-home', name: 'punch-in-top', kind: 'motion', range: [0
 | `includeText` | boolean |  | `true` | motion: include text tracks (replayed on the target scene's text nodes, in order). |
 | `textVariables` | boolean |  | `true` | scene: turn each text into a {{variable}} so it can be replaced per project. |
 | `overwrite` | boolean |  | `false` |  |
+
+### set_audio
+
+Sound for video renders (stills ignore it). Motion presets already add matching effects (swipe for spins and slides, open for rises, drop for drop-ins, wake for screen-on); use this to change the pack, add or remove cues, set volume, or add music.
+pack: the sonic personality for cues given by name: minimal (Dry, precise, almost invisible); soft (Rounded felt, warm and reassuring); glass (Bright, crystalline, and premium); arcade (Chunky pixels and cheerful voltage); mechanical (Switches, relays, and firm detents); organic (Wood, water, breath, and small stones); dreamy (Airy blooms, soft light, and slow sparkle); scifi (Clean holographic pings with a restrained digital shimmer); rubber (Tactile elastic taps with a quick, friendly rebound); cinematic (Deep impacts, polished tails, and quiet scale); studio (Tactile editing precision with warm cinematic restraint); zen (Pure tones, dry wood, and brief washi detail). Default minimal (dry, subtle); cinematic or glass suit launch videos.
+add: [{ t, sound, gain? }] with sound = a cue name ('swipe', 'drop', 'open', 'close', 'snap', 'wake', 'select', 'success', … see devicewrapper://sounds) or 'pack/cue'; or { t, asset: 'sfx/boom.wav' } for your own file (imported automatically).
+remove: 'all' | 'motion' (cues the motion presets added) | 'manual' | [indices]. music: { asset: 'audio/track.mp3', volume?, offset?, loop?, fadeIn?, fadeOut? } or null to remove.
+enabled: false makes videos silent. volume: master level (1 = as designed).
+Example: { sceneId: 'launch', pack: 'cinematic', add: [{ t: 2.4, sound: 'success' }], music: { asset: 'audio/bed.mp3', volume: 0.4 } }
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `sceneId` | string | yes |  | Scene ID (see list_scenes). |
+| `enabled` | boolean |  |  |  |
+| `pack` | "minimal" \| "soft" \| "glass" \| "arcade" \| "mechanical" \| "organic" \| "dreamy" \| "scifi" \| "rubber" \| "cinematic" \| "studio" \| "zen" |  |  |  |
+| `volume` | number |  |  |  |
+| `add` | { t, sound?, asset?, gain? }[] |  |  |  |
+| `remove` | "all" \| "motion" \| "manual" \| integer[] |  |  |  |
+| `music` | { asset, volume?, offset?, loop?, fadeIn?, fadeOut? } \| null |  |  |  |

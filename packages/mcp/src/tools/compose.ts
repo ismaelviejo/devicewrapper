@@ -59,6 +59,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
         "Text: size is in canvas pixels (scaled with the output size; default ~7% of the short side for a top headline, ~4% for a bottom line); weight 100–900. The camera leaves room for text automatically.",
         "Localization: text content may use {{variables}}; variables: { headline: 'Train smarter' }, locales: { es: { headline: 'Entrena mejor' } }; then render { locales: ['en', 'es'] }.",
         "motion: preset names as in apply_motion (e.g. 'float', 'slow-turn', 'push-in'), or objects { preset, target?, start?, duration?, amount? }; target 'all' moves the whole arrangement as one unit.",
+        "sound: motions add matching sound effects to videos by default (Minimal pack); pass a pack name like 'cinematic' for a bigger sound, or false for silence.",
         "duration sets the timeline length; whole-timeline motions stretch to it, entrances (rise, lid-open, …) keep their natural length.",
         `Styles: ${STYLE_NAMES.join(", ")}. Layouts: ${LAYOUT_NAMES.join(", ")} (default picked from the devices).`,
         "Templates (see list_templates): pass template + screens (filled into the {{screenN}} slots in order) + variables. Brief templates also take any brief field as an override;",
@@ -88,6 +89,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
         locales: ComposeBrief.shape.locales,
         motion: ComposeBrief.shape.motion,
         render: ComposeBrief.shape.render,
+        sound: ComposeBrief.shape.sound,
       },
     },
     wrap(async (a) => {
@@ -295,6 +297,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
         "target 'all': every device moves as one unit (they are grouped under 'arrangement'); use it to turn or orbit a fan/arc/row as a whole, since without it turntable/slow-turn spin each device on its own axis.",
         "Timing: start/duration in seconds (defaults: whole timeline; entrances ~1.2 s at the start; exits at the end). amount scales the motion.",
         "Motions layer: if the property is already animated (e.g. float then rise), the device is wrapped in a group and the group is animated (stack: 'auto'; use 'replace' to overwrite).",
+        "Device motions add a matching sound effect for videos (sound: false to skip; change the pack or mix with set_audio).",
         "The timeline is extended if a motion ends after it. Example: { sceneId: 'hero', preset: 'orbit', amount: 40 }",
       ].join("\n"),
       inputSchema: {
@@ -315,6 +318,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
         shot: z.string().optional().describe("reframe: auto-frame with this shot instead of returning to the base camera."),
         padding: z.number().optional().describe("reframe: framing padding."),
         shift: z.tuple([z.number(), z.number()]).optional().describe("reframe: [x, y] subject shift in the frame."),
+        sound: z.boolean().default(true).describe("Add the motion's sound effect for videos (e.g. swipe for spins and slides). Re-applying replaces its earlier cues."),
       },
     },
     wrap(async (a) => {
@@ -324,7 +328,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
         if (!tpl.motion) throw new DwError("WRONG_TEMPLATE_KIND", `'${a.clip}' is a ${tpl.kind} template, not a motion clip.`, { hint: `Use compose_scene { template: '${a.clip}' } for it.` });
         const clip = tpl.motion;
         const res = await mutate(engine, a.sceneId, (scene) => {
-          const r = applyMotionClip(scene, clip, engine.devices, { ...(a.target ? { target: a.target } : {}), ...(a.start !== undefined ? { start: a.start } : {}) });
+          const r = applyMotionClip(scene, a.sound === false ? { ...clip, sounds: [] } : clip, engine.devices, { ...(a.target ? { target: a.target } : {}), ...(a.start !== undefined ? { start: a.start } : {}) });
           return {
             scene: r.scene,
             result: {
@@ -332,6 +336,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
               animated: r.animated,
               ...(r.skipped.length ? { skipped: r.skipped } : {}),
               ...(r.durationExtended ? { durationExtendedTo: r.durationExtended } : {}),
+              ...(r.sounds ? { soundCues: r.sounds } : {}),
             },
           };
         });
@@ -346,6 +351,7 @@ export function registerComposeTools(server: McpServer, engine: Engine): void {
             animated: r.animated,
             ...(r.wrapped.length ? { wrapped: r.wrapped } : {}),
             ...(r.durationExtended ? { durationExtendedTo: r.durationExtended } : {}),
+            ...(r.sounds ? { soundCues: r.sounds } : {}),
           },
         };
       });

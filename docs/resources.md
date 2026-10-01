@@ -7,6 +7,7 @@ _Generated from the live server by `pnpm run docs:gen`._
 | `devicewrapper://guide` | guide | Workflow, conventions and tips for building device mockups. Read this first. |
 | `devicewrapper://schema/scene` | scene-schema | The complete scene format as JSON Schema. |
 | `devicewrapper://devices` | devices | Every device model with its size in meters, screen resolution and color variants. |
+| `devicewrapper://sounds` | sounds | Sound packs and the 78 cues each pack has (UI SFX, CC0), plus which cue each motion preset adds. |
 | `devicewrapper://presets` | presets | Styles, layouts, motions, lighting presets, camera shots, easings and canvas sizes. |
 | `devicewrapper://animatable` | animatable | Every property set_track can animate, per target type, with value kinds and ranges. |
 | `devicewrapper://capabilities` | capabilities | What the attached renderer can draw right now (formats, effects, backgrounds, fonts). |
@@ -87,6 +88,13 @@ Punchy app reels alternate a close-up on one spot of the screen with a pull-out 
 - Poll long renders: `get_render_job { jobId, wait: 45 }` until status is completed (tool calls time out after ~60 s).
 - Screen recordings on devices play in sync with the timeline; `offset` skips into the clip, `loop` repeats it.
 - Transparent video: background { type: 'transparent' } and format webm or mov. mp4 renders a transparent background as black.
+
+#### Sound
+
+- Videos have sound effects by default: device motions add a matching cue (swipe for spins, slides and tilts; open for rise and fade-in; drop when a drop-in lands; wake for screen-on; open/close for laptop lids). Camera moves, float and slow-turn are silent.
+- Sounds come from UI SFX (CC0), 78 cues in 12 packs. Default pack: minimal (dry, subtle; the Tactil design system's choice). For launch videos try cinematic (deep impacts) or glass (bright, premium): set_audio { pack }.
+- Fine-tune with set_audio: add cues at exact times ({ t: 2.4, sound: 'success' }), use another pack for one cue ('cinematic/drop'), your own files ({ t, asset: 'sfx/hit.wav' }), music ({ asset: 'audio/bed.mp3', volume: 0.4 }), master volume, or enabled: false for silence. render { audio: false } makes one render silent.
+- Several devices entering with a stagger each get their own cue. To turn a whole arrangement with one sound, use apply_motion { target: 'all' }.
 
 #### Localization
 

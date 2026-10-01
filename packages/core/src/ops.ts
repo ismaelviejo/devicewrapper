@@ -272,6 +272,8 @@ export function removeNode(scene: Scene, id: string, opts: { recursive?: boolean
   s.nodes = s.nodes.filter((n) => !removed.has(n.id));
   const before = s.animation.tracks.length;
   s.animation.tracks = s.animation.tracks.filter((t) => !removed.has(t.target));
+  // Sound cues a motion added for a removed node go with it.
+  s.audio.cues = s.audio.cues.filter((c) => !c.source?.startsWith("motion:") || !removed.has(c.source.split(":")[2] ?? ""));
   return { scene: s, removed: [...removed], removedTracks: before - s.animation.tracks.length };
 }
 
@@ -567,6 +569,10 @@ export function assetReferences(scene: Scene, assetId: string): string[] {
   scene.nodes.forEach((n, i) => {
     if (n.kind === "device" && n.screen.source.type !== "color" && n.screen.source.asset === assetId) refs.push(`nodes[${i}] (${n.id}).screen`);
   });
+  scene.audio.cues.forEach((c, i) => {
+    if (c.asset === assetId) refs.push(`audio.cues[${i}]`);
+  });
+  if (scene.audio.music?.asset === assetId) refs.push("audio.music");
   return refs;
 }
 

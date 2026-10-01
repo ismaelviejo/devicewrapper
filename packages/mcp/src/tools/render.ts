@@ -74,6 +74,7 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
         "Render final output as a background job. Stills: png | jpeg | webp. Video: mp4 (H.264) | webm (VP9) | mov (ProRes 4444, supports alpha).",
         "Size defaults to the scene canvas; pass preset ('1080p', '4k', …) or width/height (aspect is kept if you pass only one).",
         "locales: ['en', 'es', 'fr'] renders one output per language (one job each).",
+        "Videos include the scene's sound (motion effects, cues, music; AAC in MP4, Opus in WebM, PCM in MOV). audio: false renders silent.",
         "Returns job IDs immediately. `wait` (max 50 s) blocks until the jobs finish or the time runs out; stills usually finish in a few seconds.",
         "Videos take longer: CPU rendering costs roughly 0.5–2 s per frame (more at 4K, with supersample 2+, depth of field or bloom). Poll get_render_job with wait: 45 until completed. Draft with supersample: 1 and a small width first.",
         "Jobs run inside this server process: keep the server running until they complete (a server restart marks running jobs INTERRUPTED).",
@@ -95,6 +96,7 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
         supersample: z.number().int().min(1).max(4).optional().describe("Default: scene render.supersample (2)."),
         quality: z.number().int().min(1).max(100).optional(),
         output: z.string().optional().describe("Output path. With locales, include {locale} in it, e.g. 'out/hero-{locale}.png'."),
+        audio: z.boolean().optional().describe("Video: include the scene's sound (default true when it has any). false = silent."),
         wait: z.number().min(0).max(50).default(0).describe("Seconds (max 50) to wait for completion before returning. MCP clients time out at ~60s, so poll get_render_job for longer renders."),
       },
     },
@@ -121,6 +123,7 @@ export function registerRenderTools(server: McpServer, engine: Engine): void {
         if (a.transparent !== undefined) req.transparent = a.transparent;
         if (a.supersample !== undefined) req.supersample = a.supersample;
         if (a.quality !== undefined) req.quality = a.quality;
+        if (a.audio !== undefined) req.audio = a.audio;
         if (a.output) req.output = a.output.replaceAll("{locale}", locale ?? "default");
         jobs.push(engine.jobs.create(req));
       }

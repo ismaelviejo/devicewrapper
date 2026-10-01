@@ -12,7 +12,10 @@ import {
   LAYOUTS,
   LIGHTING_PRESETS,
   MOTIONS,
+  MOTION_SOUNDS,
   SHOT_PRESETS,
+  SOUND_CUES,
+  SOUND_PACKS,
   STYLES,
   deviceSize,
   loadConfig,
@@ -115,6 +118,12 @@ cmd += `\n## Layouts\n\n| Layout | Description |\n|---|---|\n`;
 for (const [k, v] of Object.entries(LAYOUTS)) cmd += `| \`${k}\` | ${cell(v)} |\n`;
 cmd += `\n## Motions\n\n| Motion | Kind | Description |\n|---|---|---|\n`;
 for (const [k, v] of Object.entries(MOTIONS)) cmd += `| \`${k}\` | ${v.kind} | ${cell(v.description)} |\n`;
+cmd += `\n## Sound packs\n\nFrom [UI SFX](https://uisfx.com) (audio CC0). Every pack has the same ${SOUND_CUES.length} cues. Default: \`minimal\`.\n\n| Pack | Character | Best for |\n|---|---|---|\n`;
+for (const p of SOUND_PACKS) cmd += `| \`${p.name}\` | ${cell(p.description)} | ${cell(p.bestFor)} |\n`;
+cmd += `\n## Sounds added by motions\n\n| Motion | Cue (when, as a fraction of the motion) |\n|---|---|\n`;
+for (const [k, v] of Object.entries(MOTION_SOUNDS)) cmd += `| \`${k}\` | ${v.map((x) => `\`${x.cue}\` at ${x.at}${x.gain !== 1 ? ` (gain ${x.gain})` : ""}`).join(", ")} |\n`;
+cmd += `\n## Sound cues\n\n| Cue | Category | Description |\n|---|---|---|\n`;
+for (const c of SOUND_CUES) cmd += `| \`${c.name}\` | ${c.category} | ${cell(c.description)}${c.loop ? " (loop)" : ""} |\n`;
 cmd += `\n## Camera shots\n\n| Shot | Description |\n|---|---|\n`;
 for (const [k, v] of Object.entries(SHOT_PRESETS)) cmd += `| \`${k}\` | ${cell(v.description)} |\n`;
 cmd += `\n## Lighting presets\n\n| Preset | Environment | Lights | Description |\n|---|---|---|---|\n`;

@@ -6,6 +6,7 @@ import { ensureAsset } from "./assets.js";
 import { canonicalize } from "./canonical.js";
 import { CANVAS_PRESETS, type CanvasPresetName } from "./compose.js";
 import { BUILTIN_ASSETS_DIR, type DeviceRegistry } from "./devices.js";
+import { resolveSound } from "./audio.js";
 import { DwError, schemaError } from "./errors.js";
 import { v3 } from "./math.js";
 import { resolveDevice, type MotionResult } from "./motion.js";
@@ -42,6 +43,10 @@ export const MotionClip = z.object({
   duration: z.number().positive(),
   unit: z.number().positive().describe("Screen height (m) of the device the clip was saved from."),
   tracks: z.array(ClipTrack).min(1),
+  sounds: z
+    .array(z.object({ t: z.number().min(0), sound: z.string(), gain: z.number().min(0).max(4).default(1) }))
+    .default([])
+    .describe("Built-in sound cues in the window, relative to its start ('pack/cue' so they keep their sound)."),
 });
 export type MotionClip = z.infer<typeof MotionClip>;
 
@@ -324,7 +329,18 @@ export function sceneToMotionClip(scene: Scene, devices: DeviceRegistry, opts: M
   }
   if (tracks.length === 0) throw new DwError("NOTHING_TO_SAVE", `Nothing moves in [${t0}, ${t1}] s for '${id}'.`);
   const warnings = [...skipped].map((t) => `Tracks of '${t}' are not part of the clip (only the camera, '${id}' and text are).`);
-  return { clip: { duration: r6(t1 - t0), unit, tracks }, warnings };
+  // Sound cues in the window travel with the movement (built-in sounds only; files are workspace-specific).
+  const sounds: MotionClip["sounds"] = [];
+  for (const c of scene.audio.cues) {
+    if (c.t < t0 - 1e-9 || c.t >= t1 - 1e-9) continue;
+    if (!c.sound) {
+      warnings.push(`The sound file cue at ${c.t} s isn't saved in the clip (only built-in sounds are).`);
+      continue;
+    }
+    const r = resolveSound(c.sound, scene.audio.pack);
+    sounds.push({ t: r6(c.t - t0), sound: `${r.pack}/${r.cue}`, gain: c.gain });
+  }
+  return { clip: { duration: r6(t1 - t0), unit, tracks, sounds }, warnings };
 }
 
 /** Plays a motion clip on a device of another (or the same) scene, starting at `start`. */
@@ -362,7 +378,13 @@ export function applyMotionClip(scene: Scene, clip: MotionClip, devices: DeviceR
     s = spliceTrack(s, target, tr.property, keyframes as never, [start, end], tr.interpolation as Track["interpolation"]);
     animated.push({ target, property: tr.property, from: start, to: end });
   }
-  const result: MotionResult & { skipped: string[] } = { scene: s, animated, wrapped: [], skipped };
+  if (clip.sounds.length) {
+    const source = `clip:${id}:${r6(start)}`;
+    const cues = s.audio.cues.filter((c) => c.source !== source);
+    for (const snd of clip.sounds) cues.push({ t: r6(start + snd.t), sound: snd.sound, gain: snd.gain, source });
+    s = { ...s, audio: { ...s.audio, cues: cues.sort((a, b) => a.t - b.t) } };
+  }
+  const result: MotionResult & { skipped: string[] } = { scene: s, animated, wrapped: [], skipped, ...(clip.sounds.length ? { sounds: clip.sounds.length } : {}) };
   if (end > s.canvas.duration + 1e-9) {
     const d = Math.ceil(end * 100) / 100;
     result.scene = updateScene(s, { canvas: { duration: d } });

@@ -1,6 +1,7 @@
 import type { FrameState } from "./timeline.js";
 import type { ResolvedScene } from "./resolve.js";
 import type { RendererCapabilities } from "./validate.js";
+import type { AudioPlan } from "./audio.js";
 
 /**
  * The contract every renderer backend implements. Core and the job queue only know this interface,
@@ -32,6 +33,8 @@ export interface VideoOptions extends FrameOptions {
   startFrame: number;
   endFrame: number;
   outputPath: string;
+  /** Soundtrack to mix in (from buildAudioPlan); omitted = silent video. */
+  audio?: AudioPlan;
   onProgress?: (framesDone: number, framesTotal: number) => void;
 }
 

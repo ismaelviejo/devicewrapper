@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { DeviceRegistry } from "./devices.js";
 import { DwError, schemaError } from "./errors.js";
 import { ensureAsset } from "./assets.js";
+import { setAudio } from "./audio.js";
 import { LAYOUT_NAMES, applyLayout, type LayoutName } from "./layout.js";
 import { MOTION_NAMES, applyMotion } from "./motion.js";
 import { addNode, createScene, setCamera, setVariables, updateNode, updateScene } from "./ops.js";
@@ -101,6 +102,10 @@ export const ComposeBrief = z
     locales: z.record(z.string(), z.record(z.string(), z.string())).optional(),
     motion: z.union([z.enum(MOTION_NAMES as [string, ...string[]]), MotionSpec, z.array(z.union([z.enum(MOTION_NAMES as [string, ...string[]]), MotionSpec]))]).optional(),
     render: z.record(z.string(), z.unknown()).optional().describe("Default render settings (format, quality, supersample, transparent, time)."),
+    sound: z
+      .union([z.boolean(), z.string()])
+      .optional()
+      .describe("Sound effects for motions in videos: true (default, 'minimal' pack), false for silent, or a pack name like 'cinematic'."),
   })
   .describe("Declarative description of a whole scene. Deterministic: the same brief always builds the same scene.");
 export type ComposeBrief = z.infer<typeof ComposeBrief>;
@@ -267,9 +272,11 @@ export async function composeScene(ws: Workspace, devices: DeviceRegistry, input
 
   // Motion
   const motions = brief.motion === undefined ? [] : Array.isArray(brief.motion) ? brief.motion : [brief.motion];
+  const sound = brief.sound ?? true;
+  if (typeof sound === "string") s = setAudio(s, { pack: sound });
   for (const m of motions) {
     const spec = typeof m === "string" ? { preset: m } : m;
-    s = applyMotion(s, spec as never, devices).scene;
+    s = applyMotion(s, { ...spec, sound: sound !== false } as never, devices).scene;
   }
 
   if (brief.render) s = updateScene(s, { render: brief.render });

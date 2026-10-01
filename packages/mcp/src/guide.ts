@@ -82,6 +82,13 @@ Punchy app reels alternate a close-up on one spot of the screen with a pull-out 
 - Screen recordings on devices play in sync with the timeline; \`offset\` skips into the clip, \`loop\` repeats it.
 - Transparent video: background { type: 'transparent' } and format webm or mov. mp4 renders a transparent background as black.
 
+## Sound
+
+- Videos have sound effects by default: device motions add a matching cue (swipe for spins, slides and tilts; open for rise and fade-in; drop when a drop-in lands; wake for screen-on; open/close for laptop lids). Camera moves, float and slow-turn are silent.
+- Sounds come from UI SFX (CC0), 78 cues in 12 packs. Default pack: minimal (dry, subtle; the Tactil design system's choice). For launch videos try cinematic (deep impacts) or glass (bright, premium): set_audio { pack }.
+- Fine-tune with set_audio: add cues at exact times ({ t: 2.4, sound: 'success' }), use another pack for one cue ('cinematic/drop'), your own files ({ t, asset: 'sfx/hit.wav' }), music ({ asset: 'audio/bed.mp3', volume: 0.4 }), master volume, or enabled: false for silence. render { audio: false } makes one render silent.
+- Several devices entering with a stagger each get their own cue. To turn a whole arrangement with one sound, use apply_motion { target: 'all' }.
+
 ## Localization
 
 - Put {{variables}} in text2d content, set base values with \`set_variables\`, then per-locale values with \`set_variables { locale }\`.

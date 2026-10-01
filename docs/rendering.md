@@ -62,6 +62,16 @@ Tips:
 
 Frames stream straight into FFmpeg; nothing is buffered in memory, so long 4K renders use flat memory. `start`/`end` render part of the timeline (`end` is exclusive). H.264 needs even dimensions; odd sizes are padded by one pixel with a warning. Formats without alpha render opaque with a `NO_ALPHA` warning if you ask for transparency.
 
+## Sound
+
+Videos carry the scene's sound (see [scene format](scene-format.md#audio)). Device motion presets add matching cues automatically (the [catalog](catalog.md#sounds-added-by-motions) lists which), and `set_audio` adds more, changes the pack, adds music or turns it off.
+
+- **Library:** [UI SFX](https://uisfx.com), installed as the pinned npm package `uisfx`: 78 semantic cues × 12 packs, audio dedicated to the public domain (CC0). Default pack `minimal`, the one the Tactil design system uses. Your own MP3, WAV, M4A, AAC, OGG or FLAC files work too.
+- **Mixing:** after the frames are encoded, a second FFmpeg pass copies the video stream and adds the soundtrack: each clip is trimmed, resampled to 48 kHz stereo, scaled and delayed to its start, then everything is mixed, padded or trimmed to the exact video length and passed through a limiter.
+- **Codecs:** AAC 192 kb/s in MP4, Opus 160 kb/s in WebM, 16-bit PCM in MOV. Transparency is kept.
+- **Determinism:** bit-exact encoder flags; the same scene gives the same audio samples every time (a golden test checks it, and that the sounds land at their cue times).
+- `render { audio: false }` makes one render silent; `set_audio { enabled: false }` silences the scene.
+
 ## Transparency
 
 Set `background: { type: 'transparent' }` (or `transparent: true` on the render) and use PNG, WebP, WebM or MOV. Shadows and the mirror floor stay: they're drawn with alpha, so they sit correctly over whatever you place the image on. Any style can be rendered transparent; `product-white` + `transparent: true` gives a clean cut-out with a soft shadow.

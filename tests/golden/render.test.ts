@@ -25,7 +25,7 @@ import { Engine } from "@devicewrapper/jobs";
 import { createMcpServer } from "@devicewrapper/mcp";
 import { ThreeChromiumRenderer } from "@devicewrapper/renderer";
 import { execFileSync } from "node:child_process";
-import { setTrack } from "@devicewrapper/core";
+import { applyMotion, setAudio, setTrack } from "@devicewrapper/core";
 import { tmpWorkspace, writeScreenshot } from "../helpers.js";
 
 /**
@@ -163,6 +163,37 @@ describe("video", () => {
     expect(framemd5(outs[0]!)).toBe(framemd5(outs[1]!));
     const probe = execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,width,height,nb_frames", "-of", "csv=p=0", outs[0]!]).toString().trim();
     expect(probe).toBe("h264,160,90,10");
+  });
+
+  it("adds motion sound effects to the video, deterministically and on time", async () => {
+    let s = await heroScene();
+    s = { ...s, id: "sfx", canvas: { ...s.canvas, width: 160, height: 90, fps: 10, duration: 2 } };
+    s = applyMotion(s, { preset: "drop-in", start: 0.2, duration: 1 }, engine.devices).scene;
+    s = setAudio(s, { add: [{ t: 1.5, sound: "success" }] });
+    engine.store.save(s);
+    const outs: string[] = [];
+    for (const k of [0, 1]) {
+      const job = engine.jobs.create({ sceneId: "sfx", format: "mp4", supersample: 1, output: `renders/sfx-${k}.mp4` });
+      const done = await engine.jobs.wait(job.jobId, 170000);
+      expect(done.status, done.error?.message).toBe("completed");
+      outs.push(join(root, done.output));
+    }
+    const pcm = (path: string) => execFileSync("ffmpeg", ["-v", "error", "-i", path, "-map", "0:a", "-ac", "1", "-ar", "8000", "-f", "s16le", "-"]);
+    const a = pcm(outs[0]!);
+    expect(sha256(a)).toBe(sha256(pcm(outs[1]!)));
+    expect(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0", outs[0]!]).toString().trim().split("\n")).toEqual(["h264", "aac"]);
+    // Loudest 100 ms windows: the drop lands at 0.2 + 0.37 s, the success cue starts at 1.5 s; silence before.
+    const peakAt = (from: number, to: number) => {
+      let m = 0;
+      for (let i = Math.floor(from * 8000); i < Math.min(a.length / 2, to * 8000); i++) m = Math.max(m, Math.abs(a.readInt16LE(i * 2)));
+      return m / 32768;
+    };
+    expect(peakAt(0, 0.5)).toBeLessThan(0.01);
+    expect(peakAt(0.55, 0.75)).toBeGreaterThan(0.1);
+    expect(peakAt(1.5, 1.8)).toBeGreaterThan(0.1);
+    // audio: false renders the same video silently.
+    const silent = await engine.jobs.wait(engine.jobs.create({ sceneId: "sfx", format: "mp4", supersample: 1, audio: false, output: "renders/sfx-silent.mp4" }).jobId, 170000);
+    expect(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name", "-of", "csv=p=0", join(root, silent.output)]).toString().trim()).toBe("h264");
   });
 
   it("plays a video on the screen and writes transparent ProRes", async () => {

@@ -1,0 +1,17 @@
+{
+  "_doc": "Sound cues added by motion presets. 'cue' is a cue name in the scene's sound pack; 'at' is when it plays, as a fraction of the motion's duration (0 = start); 'gain' (default 1) lifts quiet cues like swipe so they read under motion. Motions not listed here are silent (camera moves, float, slow-turn).",
+  "turntable": [{ "cue": "swipe", "at": 0, "gain": 1.4 }],
+  "rise": [{ "cue": "open", "at": 0 }],
+  "drop-in": [{ "cue": "drop", "at": 0.37 }],
+  "enter-left": [{ "cue": "swipe", "at": 0, "gain": 1.4 }],
+  "enter-right": [{ "cue": "swipe", "at": 0, "gain": 1.4 }],
+  "exit-left": [{ "cue": "swipe", "at": 0, "gain": 1.4 }],
+  "exit-right": [{ "cue": "swipe", "at": 0, "gain": 1.4 }],
+  "fade-in": [{ "cue": "open", "at": 0 }],
+  "fade-out": [{ "cue": "close", "at": 0 }],
+  "spin-reveal": [{ "cue": "swipe", "at": 0, "gain": 1.4 }],
+  "tilt-up": [{ "cue": "swipe", "at": 0, "gain": 1.4 }],
+  "lid-open": [{ "cue": "open", "at": 0.05 }],
+  "lid-close": [{ "cue": "close", "at": 0.85 }],
+  "screen-on": [{ "cue": "wake", "at": 0 }]
+}

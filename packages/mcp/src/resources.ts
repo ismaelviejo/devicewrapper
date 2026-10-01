@@ -1,5 +1,5 @@
 import { ResourceTemplate, type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { CAMERA_SHOTS, LAYOUTS, LIGHTING_PRESETS, MOTIONS, SHOT_PRESETS, STYLES, animatableCatalog, canonicalStringify, deviceSize } from "@devicewrapper/core";
+import { CAMERA_SHOTS, LAYOUTS, LIGHTING_PRESETS, MOTIONS, MOTION_SOUNDS, SHOT_PRESETS, SOUND_CUES, SOUND_PACKS, STYLES, animatableCatalog, canonicalStringify, deviceSize } from "@devicewrapper/core";
 import type { Engine } from "@devicewrapper/jobs";
 import { EASINGS, sceneJsonSchema } from "@devicewrapper/schema";
 import { GUIDE } from "./guide.js";
@@ -43,6 +43,24 @@ export function registerResources(server: McpServer, engine: Engine): void {
           colors: d.colors.map((c) => ({ name: c.name, hex: c.body, finish: c.finish })),
         })),
       ),
+  );
+
+  server.registerResource(
+    "sounds",
+    "devicewrapper://sounds",
+    {
+      title: "Sound library",
+      description: "Sound packs and the 78 cues each pack has (UI SFX, CC0), plus which cue each motion preset adds.",
+      mimeType: "application/json",
+    },
+    async (uri) =>
+      json(uri.href, {
+        defaultPack: "minimal",
+        packs: SOUND_PACKS,
+        cues: SOUND_CUES,
+        motionSounds: MOTION_SOUNDS,
+        usage: "In set_audio cues use a cue name ('swipe', from the scene's pack) or 'pack/cue' ('cinematic/swipe').",
+      }),
   );
 
   server.registerResource(

@@ -61,6 +61,7 @@ describe("MCP surface", () => {
         "render",
         "render_preview",
         "save_template",
+        "set_audio",
         "set_background",
         "set_camera",
         "set_effects",
@@ -81,7 +82,7 @@ describe("MCP surface", () => {
   it("lists resources including the guide and schema", async () => {
     const { resources } = await client.listResources();
     const uris = resources.map((r) => r.uri);
-    for (const u of ["devicewrapper://guide", "devicewrapper://schema/scene", "devicewrapper://devices", "devicewrapper://presets", "devicewrapper://animatable"]) {
+    for (const u of ["devicewrapper://guide", "devicewrapper://schema/scene", "devicewrapper://devices", "devicewrapper://presets", "devicewrapper://animatable", "devicewrapper://sounds"]) {
       expect(uris).toContain(u);
     }
     const devicesRes = await client.readResource({ uri: "devicewrapper://devices" });
@@ -207,6 +208,23 @@ describe("MCP workflow", () => {
     expect(played.data.clip).toBe("slam-in");
     expect((await call("apply_motion", { sceneId: "plain", clip: "punch-rhythm" })).data.error.code).toBe("WRONG_TEMPLATE_KIND");
     expect((await call("validate_scene", { sceneId: "plain" })).data.valid).toBe(true);
+  });
+
+  it("sets audio through set_audio, importing an audio file by path", async () => {
+    const { copyFileSync } = await import("node:fs");
+    const { resolveSound } = await import("@devicewrapper/core");
+    copyFileSync(resolveSound("success").file, join(root, "ding.mp3"));
+    await call("create_scene", { id: "s" });
+    await call("add_device", { sceneId: "s" });
+    expect((await call("apply_motion", { sceneId: "s", preset: "drop-in" })).data.soundCues).toBe(1);
+    const r = await call("set_audio", { sceneId: "s", pack: "glass", add: [{ t: 1, asset: "ding.mp3" }], music: { asset: "ding.mp3", volume: 0.3 } });
+    expect(r.isError).toBe(false);
+    expect(r.data.imported).toEqual(["ding"]);
+    expect(r.data.audio.cues.map((c: { sound?: string; asset?: string }) => c.sound ?? c.asset)).toEqual(["drop", "ding"]);
+    expect(r.data.audio.music).toMatchObject({ asset: "ding", volume: 0.3 });
+    const bad = await call("set_audio", { sceneId: "s", add: [{ t: 0, sound: "nope" }] });
+    expect(bad.data.error.code).toBe("UNKNOWN_SOUND");
+    expect((await call("validate_scene", { sceneId: "s" })).data.valid).toBe(true);
   });
 
   it("reports NOT_IMPLEMENTED for rendering when no renderer is attached", async () => {

@@ -5,10 +5,13 @@ import {
   LIGHTING_PRESETS,
   LIGHTING_PRESET_NAMES,
   SHOT_PRESETS,
+  SOUND_PACKS,
+  SOUND_PACK_NAMES,
   ensureAsset,
   setBackground,
   setCamera,
   setEffects,
+  setAudio,
   setLights,
 } from "@devicewrapper/core";
 import type { Engine } from "@devicewrapper/jobs";
@@ -201,6 +204,91 @@ export function registerLookTools(server: McpServer, engine: Engine): void {
           ...(a.remove ? { remove: a.remove } : {}),
         });
         return { scene: next, result: { effects: next.effects } };
+      });
+      return ok(res);
+    }),
+  );
+
+  server.registerTool(
+    "set_audio",
+    {
+      title: "Set audio",
+      description: [
+        "Sound for video renders (stills ignore it). Motion presets already add matching effects (swipe for spins and slides, open for rises, drop for drop-ins, wake for screen-on); use this to change the pack, add or remove cues, set volume, or add music.",
+        `pack: the sonic personality for cues given by name: ${SOUND_PACKS.map((p) => `${p.name} (${p.description.replace(/\.$/, "")})`).join("; ")}. Default minimal (dry, subtle); cinematic or glass suit launch videos.`,
+        "add: [{ t, sound, gain? }] with sound = a cue name ('swipe', 'drop', 'open', 'close', 'snap', 'wake', 'select', 'success', … see devicewrapper://sounds) or 'pack/cue'; or { t, asset: 'sfx/boom.wav' } for your own file (imported automatically).",
+        "remove: 'all' | 'motion' (cues the motion presets added) | 'manual' | [indices]. music: { asset: 'audio/track.mp3', volume?, offset?, loop?, fadeIn?, fadeOut? } or null to remove.",
+        "enabled: false makes videos silent. volume: master level (1 = as designed).",
+        "Example: { sceneId: 'launch', pack: 'cinematic', add: [{ t: 2.4, sound: 'success' }], music: { asset: 'audio/bed.mp3', volume: 0.4 } }",
+      ].join("\n"),
+      inputSchema: {
+        sceneId: SceneId,
+        enabled: z.boolean().optional(),
+        pack: z.enum(SOUND_PACK_NAMES as [string, ...string[]]).optional(),
+        volume: z.number().min(0).max(4).optional(),
+        add: z
+          .array(
+            z.object({
+              t: z.number().min(0).describe("Seconds on the timeline."),
+              sound: z.string().optional().describe("Cue name or 'pack/cue'."),
+              asset: z.string().optional().describe("Audio asset ID or workspace file path."),
+              gain: z.number().min(0).max(4).optional(),
+            }),
+          )
+          .optional(),
+        remove: z.union([z.enum(["all", "motion", "manual"]), z.array(z.number().int().min(0))]).optional(),
+        music: z
+          .union([
+            z.object({
+              asset: z.string().describe("Audio asset ID or workspace file path."),
+              volume: z.number().min(0).max(4).optional(),
+              offset: z.number().min(0).optional(),
+              loop: z.boolean().optional(),
+              fadeIn: z.number().min(0).optional(),
+              fadeOut: z.number().min(0).optional(),
+            }),
+            z.null(),
+          ])
+          .optional(),
+      },
+    },
+    wrap(async (a) => {
+      const res = await mutate(engine, a.sceneId, async (scene) => {
+        let s = scene;
+        const imported: string[] = [];
+        const toAsset = async (ref: string) => {
+          const r = await ensureAsset(engine.ws, s, ref, ref.match(/\.(mp4|mov|webm)$/i) ? "video" : "audio");
+          s = r.scene;
+          if (r.imported) imported.push(r.assetId);
+          return r.assetId;
+        };
+        const add = [];
+        for (const c of a.add ?? []) {
+          add.push(c.asset ? { ...c, asset: await toAsset(c.asset) } : c);
+        }
+        let music: Record<string, unknown> | null | undefined = a.music;
+        if (a.music) music = { ...a.music, asset: await toAsset(a.music.asset) };
+        s = setAudio(s, {
+          ...(a.enabled !== undefined ? { enabled: a.enabled } : {}),
+          ...(a.pack ? { pack: a.pack } : {}),
+          ...(a.volume !== undefined ? { volume: a.volume } : {}),
+          ...(a.remove !== undefined ? { remove: a.remove } : {}),
+          ...(add.length ? { add } : {}),
+          ...(music !== undefined ? { music } : {}),
+        });
+        return {
+          scene: s,
+          result: {
+            audio: {
+              enabled: s.audio.enabled,
+              pack: s.audio.pack,
+              volume: s.audio.volume,
+              cues: s.audio.cues.map((c, i) => ({ i, t: c.t, ...(c.sound ? { sound: c.sound } : { asset: c.asset }), gain: c.gain, ...(c.source ? { from: c.source } : {}) })),
+              ...(s.audio.music ? { music: s.audio.music } : {}),
+            },
+            ...(imported.length ? { imported } : {}),
+          },
+        };
       });
       return ok(res);
     }),

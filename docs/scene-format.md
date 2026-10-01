@@ -241,6 +241,37 @@ Motion presets (`apply_motion`) just write tracks like these.
 
 One of each type at most.
 
+## Audio
+
+Sound for video renders; stills ignore it.
+
+```json
+"audio": {
+  "enabled": true,
+  "pack": "minimal",
+  "volume": 1,
+  "cues": [
+    { "t": 0, "sound": "open", "gain": 1, "source": "motion:rise:phone" },
+    { "t": 2.4, "sound": "cinematic/success", "gain": 1 },
+    { "t": 3, "asset": "hit", "gain": 0.8 }
+  ],
+  "music": { "asset": "bed", "volume": 0.4, "offset": 0, "loop": true, "fadeIn": 0.5, "fadeOut": 1 }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `enabled` | `false` = every render of this scene is silent |
+| `pack` | Sound pack for cues given by name (see [catalog](catalog.md#sound-packs)); default `minimal` |
+| `volume` | Master level for effects and music (1 = as designed) |
+| `cues[].t` | Start time in seconds |
+| `cues[].sound` | A cue name (`swipe`, from `pack`) or `pack/cue` (`cinematic/swipe`). Or `asset` for an imported audio file. Exactly one of the two |
+| `cues[].gain` | Loudness multiplier |
+| `cues[].source` | Set by motion presets (`motion:<preset>:<node>`). Re-applying the motion replaces its own cues; removing the node removes them |
+| `music` | An imported audio (or video-with-sound) asset under the effects, with offset, loop and fades |
+
+Built-in sounds are mastered to the same peak; each cue's relative level comes from the pack's own balance. The mix is limited so overlapping sounds never clip.
+
 ## Localization
 
 `variables` holds the base values for `{{name}}` placeholders; `locales` holds per-locale overrides. Rendering with `locale: 'es'` uses `locales.es` over `variables`. `{{locale}}` is always defined. Validation warns about undefined variables, missing translations, and scripts the bundled font doesn't cover (those fall back to system fonts; import a font for identical results on every machine).

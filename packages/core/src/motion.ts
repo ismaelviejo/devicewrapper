@@ -7,6 +7,7 @@ import { easingFn, quatRotate, v3 } from "./math.js";
 import { addNode, setCamera, setTrack, updateNode, updateScene } from "./ops.js";
 import { posedScene, screenFrameLocal, screenPoint, spliceTrack, toWorld, worldPose } from "./pose.js";
 import { evaluateFrame } from "./timeline.js";
+import { addMotionCues } from "./audio.js";
 
 /**
  * Motion presets: named, parameterized animations built from keyframes relative to the target's
@@ -76,6 +77,8 @@ export interface MotionOptions {
   shot?: string;
   padding?: number;
   shift?: [number, number];
+  /** Add the motion's sound effect cues (default true). See assets/presets/motion-sounds.json. */
+  sound?: boolean;
 }
 
 export interface MotionResult {
@@ -83,6 +86,8 @@ export interface MotionResult {
   animated: Array<{ target: string; property: string; from: number; to: number }>;
   wrapped: Array<{ node: string; group: string }>;
   durationExtended?: number;
+  /** Number of sound cues added. */
+  sounds?: number;
 }
 
 const ENTRANCES = new Set(["rise", "drop-in", "enter-left", "enter-right", "fade-in", "spin-reveal", "tilt-up", "lid-open", "screen-on"]);
@@ -417,6 +422,7 @@ export function applyMotion(scene: Scene, opts: MotionOptions, devices: DeviceRe
   const animated: MotionResult["animated"] = [];
   const wrapped: MotionResult["wrapped"] = [];
   let latest = 0;
+  let soundCount = 0;
 
   if (spec.kind === "camera") {
     if (opts.target && opts.target !== "camera") throw new DwError("INVALID_MOTION_TARGET", `'${opts.preset}' is a camera motion; omit target or use 'camera'.`);
@@ -430,7 +436,7 @@ export function applyMotion(scene: Scene, opts: MotionOptions, devices: DeviceRe
     if (ids.length === 0) throw new DwError("NOTHING_TO_ANIMATE", "There are no text nodes.");
     const stagger = opts.stagger ?? (ids.length > 1 ? 0.15 : 0);
     ids.forEach((id, k) => {
-      const st = start + stagger * k;
+      const st = r6(start + stagger * k);
       for (const tr of textKeyframes(s, opts.preset, id, st, duration, opts.amount, opts.easing)) {
         s = setTrack(s, { target: id, property: tr.property, keyframes: tr.keyframes as never });
         animated.push({ target: id, property: tr.property, from: st, to: st + duration });
@@ -460,8 +466,10 @@ export function applyMotion(scene: Scene, opts: MotionOptions, devices: DeviceRe
       });
     }
     const stagger = opts.stagger ?? (ENTRANCES.has(opts.preset) && targets.length > 1 ? 0.12 : 0);
+    const runs: Array<{ target: string; start: number }> = [];
     targets.forEach((target, k) => {
-      const st = start + stagger * k;
+      const st = r6(start + stagger * k);
+      runs.push({ target, start: st });
       const props = nodeKeyframes(s, opts.preset, target, st, duration, opts.amount, opts.easing, devices, false).map((p) => p.property);
       let animTarget = target;
       let identity = false;
@@ -480,8 +488,13 @@ export function applyMotion(scene: Scene, opts: MotionOptions, devices: DeviceRe
       }
       latest = Math.max(latest, st + duration);
     });
+    if (opts.sound ?? true) {
+      const r = addMotionCues(s, opts.preset, runs, duration);
+      s = r.scene;
+      soundCount = r.added;
+    }
   }
-  const result: MotionResult = { scene: s, animated, wrapped };
+  const result: MotionResult = { scene: s, animated, wrapped, ...(soundCount ? { sounds: soundCount } : {}) };
   if (latest > s.canvas.duration + 1e-9) {
     const d = Math.ceil(latest * 100) / 100;
     result.scene = updateScene(s, { canvas: { duration: d } });

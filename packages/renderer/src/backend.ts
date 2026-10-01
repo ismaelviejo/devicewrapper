@@ -19,7 +19,7 @@ import {
 import type { LoadPayload, PageBackground, PageFont, PageLimits, PageNode, RenderFrameOptions } from "./protocol.js";
 import { ChromeProcess, defaultChromiumPath, type CdpPage } from "./cdp.js";
 import { prepareBackground, prepareScreenTexture } from "./textures.js";
-import { FrameEncoder, clipFrameIndex, decodeClip, encoderArgs, type DecodeSpec } from "./video.js";
+import { FrameEncoder, audioMuxArgs, clipFrameIndex, decodeClip, encoderArgs, runFfmpeg, type DecodeSpec } from "./video.js";
 
 // Works from both dist/ (published) and src/ (tests): the bundle always lives in <package>/dist/page.
 const PAGE_JS = join(dirname(fileURLToPath(import.meta.url)), "..", "dist", "page", "page.js");
@@ -33,6 +33,7 @@ export const CAPABILITIES: RendererCapabilities = {
   screenSources: ["image", "video", "color"],
   effects: ["vignette", "fog", "grain", "bloom"],
   depthOfField: true,
+  audio: true,
   text: true,
   video: true,
   fonts: ["Inter"],
@@ -616,7 +617,19 @@ export class ThreeChromiumRenderer implements RenderBackend {
       if (inFlight) await flush(inFlight);
       await encoder.finish();
       const { renameSync } = await import("node:fs");
-      renameSync(partial, opts.outputPath);
+      if (opts.audio && opts.audio.clips.length) {
+        // Second pass: copy the video stream and add the mixed soundtrack.
+        const withAudio = `${opts.outputPath}.audio.${opts.format}`;
+        try {
+          await runFfmpeg(this.opts.config.ffmpegPath, audioMuxArgs(opts.format, opts.audio, partial, withAudio), signal);
+          renameSync(withAudio, opts.outputPath);
+        } finally {
+          rmSync(withAudio, { force: true });
+          rmSync(partial, { force: true });
+        }
+      } else {
+        renameSync(partial, opts.outputPath);
+      }
     } catch (e) {
       encoder.kill();
       rmSync(partial, { force: true });

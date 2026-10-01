@@ -61,27 +61,27 @@ Then ask Claude things like:
 
 ## What the agent gets
 
-**Tools (31)**
+**Tools (33)**
 
 | Area | Tools |
 |---|---|
-| Compose | `compose_scene` (one call from a brief or template), `list_templates`, `apply_layout`, `apply_style`, `apply_motion` |
+| Compose | `compose_scene` (one call from a brief or template), `list_templates`, `save_template` (save a composition or one movement for reuse), `apply_layout`, `apply_style`, `apply_motion` |
 | Scenes | `create_scene`, `list_scenes`, `get_scene`, `update_scene`, `duplicate_scene`, `delete_scene`, `validate_scene`, `import_scene`, `export_scene` |
 | Nodes | `add_device`, `add_node` (plane, primitive, group, text), `update_node`, `remove_node` |
-| Look | `set_camera` (auto-framing shots), `set_lights` (presets), `set_background`, `set_effects` |
+| Look | `set_camera` (auto-framing shots), `set_lights` (presets), `set_background`, `set_effects`, `set_audio` (sound effects and music for videos) |
 | Motion | `set_track`, `remove_track` |
 | Assets & text | `import_asset`, `set_variables` (localization) |
 | Rendering | `render_preview` (returns the image inline), `render`, `get_render_job`, `list_render_jobs`, `cancel_render_job` |
 
 Full reference: [tools](docs/tools.md), [resources](docs/resources.md), [catalog](docs/catalog.md), [examples](docs/examples.md).
 
-**Resources:** `devicewrapper://guide` (workflow and composition tips), `schema/scene` (JSON Schema), `devices`, `presets`, `animatable`, `capabilities`, and every saved scene at `devicewrapper://scenes/{id}`.
+**Resources:** `devicewrapper://guide` (workflow and composition tips), `schema/scene` (JSON Schema), `devices`, `presets`, `sounds`, `animatable`, `capabilities`, and every saved scene at `devicewrapper://scenes/{id}`.
 
 **Devices:** `phone-modern`, `phone-classic`, `tablet`, `laptop-14` (animatable lid), `monitor-27`, `watch-45`, each with color variants. Add your own with a JSON file in `.devicewrapper/devices/`.
 
 **Templates (15):** hero-phone, hero-laptop, phone-pair, phone-trio, phone-tablet, phone-laptop, floating-phone, device-grid, device-carousel, app-store-hero, dark-product-shot, light-product-shot, watch-hero, desktop-setup, laptop-reveal. Add your own briefs in `.devicewrapper/templates/`.
 
-**Styles:** light-studio, dark-studio, soft-gradient, midnight-neon, sunset, mint, product-white, transparent, glossy-dark, glossy-light. **Layouts:** hero, row, arc, fan, stack, grid, circle, showcase. **Motions:** 23 presets (float, slow-turn, turntable, rise, enter/exit, spin-reveal, lid-open, orbit, push-in, pan, crane, zoom …).
+**Styles:** light-studio, dark-studio, soft-gradient, midnight-neon, sunset, mint, product-white, transparent, glossy-dark, glossy-light. **Layouts:** hero, row, arc, fan, stack, grid, circle, showcase. **Motions:** 23 presets (float, slow-turn, turntable, rise, enter/exit, spin-reveal, lid-open, orbit, push-in, pan, crane, zoom …). **Sound:** motions add matching sound effects to videos (swipe, open, drop, wake …) from the [UI SFX](https://uisfx.com) library, 12 packs (CC0), Minimal by default; add cues, your own files or music with `set_audio`.
 
 ## CLI
 

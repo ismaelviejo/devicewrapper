@@ -4,6 +4,7 @@ import { resolveDeviceColor, type DeviceRegistry } from "./devices.js";
 import { formatPath, isDwError, type IssueDetail } from "./errors.js";
 import { animatableProperties, checkValue, findTarget } from "./properties.js";
 import { referencedVariables, substitute, variablesFor } from "./resolve.js";
+import { SOUND_PACK_NAMES, resolveSound } from "./audio.js";
 import { migrateScene } from "./store.js";
 import type { Workspace } from "./workspace.js";
 
@@ -39,6 +40,8 @@ export interface RendererCapabilities {
   backgrounds: ReadonlyArray<string>;
   screenSources: ReadonlyArray<string>;
   effects: ReadonlyArray<string>;
+  /** Can mux sound into video renders. */
+  audio?: boolean;
   depthOfField: boolean;
   text: boolean;
   video: boolean;
@@ -227,6 +230,31 @@ export function validateScene(input: unknown, ctx: ValidateContext): ValidationR
     effectTypes.add(e.type);
     if (caps && !caps.effects.includes(e.type)) warn("NOT_RENDERED", `Effect '${e.type}' is not supported by the current renderer yet.`, `effects[${i}]`);
   });
+
+  /* audio */
+  const au = scene.audio;
+  if (!SOUND_PACK_NAMES.includes(au.pack)) err("UNKNOWN_SOUND_PACK", `Sound pack '${au.pack}' does not exist. Packs: ${SOUND_PACK_NAMES.join(", ")}.`, "audio.pack");
+  au.cues.forEach((c, i) => {
+    const p = `audio.cues[${i}]`;
+    if (c.sound) {
+      try {
+        resolveSound(c.sound, SOUND_PACK_NAMES.includes(au.pack) ? au.pack : "minimal");
+      } catch (e) {
+        if (isDwError(e)) err(e.code, e.message, `${p}.sound`, e.hint);
+      }
+    } else if (c.asset) {
+      const a = scene.assets[c.asset];
+      if (!a) err("UNKNOWN_ASSET", `Audio cue uses asset '${c.asset}', which is not in scene.assets.`, `${p}.asset`, "Import it with set_audio (pass a file path) or import_asset.");
+      else if (a.type !== "audio" && a.type !== "video") err("ASSET_TYPE_MISMATCH", `Asset '${c.asset}' is a ${a.type}; audio cues need an audio file.`, `${p}.asset`);
+    }
+    if (c.t >= scene.canvas.duration) warn("CUE_AFTER_END", `Sound at ${c.t}s starts after the timeline ends (${scene.canvas.duration}s) and won't be heard.`, `${p}.t`);
+  });
+  if (au.music) {
+    const a = scene.assets[au.music.asset];
+    if (!a) err("UNKNOWN_ASSET", `Music uses asset '${au.music.asset}', which is not in scene.assets.`, "audio.music.asset");
+    else if (a.type !== "audio" && a.type !== "video") err("ASSET_TYPE_MISMATCH", `Asset '${au.music.asset}' is a ${a.type}; music needs an audio file.`, "audio.music.asset");
+  }
+  if (caps && caps.audio === false && au.enabled && (au.cues.length || au.music)) warn("NOT_RENDERED", "The scene has sound, but the current renderer can't add audio to videos.", "audio");
 
   /* assets on disk */
   if (ctx.workspace && ctx.checkFiles !== false) {

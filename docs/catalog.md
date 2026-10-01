@@ -95,6 +95,127 @@ Use with `compose_scene { template, screens }`. See [templates.md](templates.md)
 | `focus` | camera | Camera rushes in to a point on a device's screen (target = device, default the one nearest the camera's aim; point = [x, y] on the display, 0..1 from top-left, default [0.5, 0.3]; amount = fraction of the screen height in view, default 0.4; angle = [yaw, pitch] off the screen normal, default [8, 4]), then holds `hold` seconds with a slow drift. Default 0.35 s, easeInOutExpo. |
 | `reframe` | camera | Camera pulls back out: to the scene's base camera, or to an auto-framed shot when shot / padding / shift are given (framed on the devices as they are posed at that moment), then holds `hold` seconds with a slow push. Default 0.45 s, easeInOutExpo. |
 
+## Sound packs
+
+From [UI SFX](https://uisfx.com) (audio CC0). Every pack has the same 78 cues. Default: `minimal`.
+
+| Pack | Character | Best for |
+|---|---|---|
+| `minimal` | Dry, precise, almost invisible. | Productivity, SaaS, system UI |
+| `soft` | Rounded felt, warm and reassuring. | Mobile, wellness, friendly SaaS |
+| `glass` | Bright, crystalline, and premium. | Media, finance, luxury products |
+| `arcade` | Chunky pixels and cheerful voltage. | Games, streaks, gamified learning |
+| `mechanical` | Switches, relays, and firm detents. | Devtools, hardware, industrial UI |
+| `organic` | Wood, water, breath, and small stones. | Education, kids, calm games |
+| `dreamy` | Airy blooms, soft light, and slow sparkle. | Creative tools, wellness, ambient apps |
+| `scifi` | Clean holographic pings with a restrained digital shimmer. | AI tools, spatial UI, futuristic games |
+| `rubber` | Tactile elastic taps with a quick, friendly rebound. | Kids, playful mobile, casual games |
+| `cinematic` | Deep impacts, polished tails, and quiet scale. | Premium media, games, dramatic moments |
+| `studio` | Tactile editing precision with warm cinematic restraint. | Film, audio, and AI creative tools |
+| `zen` | Pure tones, dry wood, and brief washi detail. | Mindfulness, reading, writing, calm productivity |
+
+## Sounds added by motions
+
+| Motion | Cue (when, as a fraction of the motion) |
+|---|---|
+| `turntable` | `swipe` at 0 (gain 1.4) |
+| `rise` | `open` at 0 |
+| `drop-in` | `drop` at 0.37 |
+| `enter-left` | `swipe` at 0 (gain 1.4) |
+| `enter-right` | `swipe` at 0 (gain 1.4) |
+| `exit-left` | `swipe` at 0 (gain 1.4) |
+| `exit-right` | `swipe` at 0 (gain 1.4) |
+| `fade-in` | `open` at 0 |
+| `fade-out` | `close` at 0 |
+| `spin-reveal` | `swipe` at 0 (gain 1.4) |
+| `tilt-up` | `swipe` at 0 (gain 1.4) |
+| `lid-open` | `open` at 0.05 |
+| `lid-close` | `close` at 0.85 |
+| `screen-on` | `wake` at 0 |
+
+## Sound cues
+
+| Cue | Category | Description |
+|---|---|---|
+| `hover` | input | Fine-pointer discovery without commitment. |
+| `press` | input | A control is physically engaged. |
+| `release` | input | A pressed control springs back. |
+| `double-click` | input | A rapid secondary activation. |
+| `focus` | input | A control becomes ready for keyboard or text input. |
+| `long-press` | input | A sustained press reveals a secondary action. |
+| `select` | selection | An item enters the active set. |
+| `deselect` | selection | An item leaves the active set. |
+| `toggle-on` | selection | A binary setting becomes active. |
+| `toggle-off` | selection | A binary setting becomes inactive. |
+| `check` | selection | A checkbox or task enters its completed state. |
+| `uncheck` | selection | A checkbox or task returns to its incomplete state. |
+| `delete` | editing | A destructive removal is committed. |
+| `cancel` | editing | A pending action is abandoned without applying. |
+| `undo` | editing | The most recent change is reversed. |
+| `redo` | editing | A reversed change is applied again. |
+| `copy` | editing | Selected content is placed on the clipboard. |
+| `paste` | editing | Clipboard content is inserted into the current context. |
+| `open` | navigation | A menu, sheet, panel, or detail view appears. |
+| `close` | navigation | A menu, sheet, panel, or detail view recedes. |
+| `back` | navigation | Navigation returns to the previous place. |
+| `forward` | navigation | Navigation advances to the next place. |
+| `expand` | navigation | A collapsed region reveals more detail. |
+| `collapse` | navigation | An expanded region returns to its compact state. |
+| `drag-start` | movement | An object lifts from its resting place. |
+| `drop` | movement | A dragged object lands in a valid target. |
+| `snap` | movement | An object locks into a precise position. |
+| `swipe` | movement | A touch gesture moves content spatially. |
+| `reorder` | movement | An item settles into a new position in a sequence. |
+| `invalid-drop` | movement | A dragged object cannot land in the current target. |
+| `send` | communication | A message or object leaves the user. |
+| `receive` | communication | A response or object arrives. |
+| `notification` | communication | New information is available, without urgency. |
+| `mention` | communication | The user is directly addressed. |
+| `typing` | communication | A brief key contact during text entry. |
+| `reaction` | communication | A lightweight social response is added. |
+| `success` | feedback | An action finished with the expected result. |
+| `error` | feedback | An action failed and needs attention. |
+| `warning` | feedback | A risky or consequential state needs review. |
+| `info` | feedback | A neutral system fact is surfaced. |
+| `blocked` | feedback | An action cannot continue in the current state. |
+| `retry` | feedback | A failed action is attempted again. |
+| `start` | progress | A process, recording, or session begins. |
+| `stop` | progress | A process, recording, or session ends. |
+| `progress-step` | progress | A discrete step advances inside a longer process. |
+| `complete` | progress | A multi-step process reaches its final state. |
+| `queued` | progress | Work is accepted and waiting to begin. |
+| `checkpoint` | progress | A meaningful stage in a longer process is saved. |
+| `loading` | loops | A quiet repeating pulse while an interface fetches or waits. (loop) |
+| `processing` | loops | A restrained repeating bed while sustained work is running. (loop) |
+| `recording` | loops | A calm periodic pulse while audio or video capture is live. (loop) |
+| `connecting` | loops | A repeating search pattern while a device or live session connects. (loop) |
+| `scanning` | loops | A spatial sweep repeats while content or devices are discovered. (loop) |
+| `streaming` | loops | A quiet repeating flow while live data or media continues. (loop) |
+| `play` | media | Media playback begins or resumes. |
+| `pause` | media | Media playback pauses at the current position. |
+| `seek` | media | The playback position moves to a new point. |
+| `volume-change` | media | Playback loudness moves to a new level. |
+| `skip-next` | media | Playback advances to the next item. |
+| `skip-previous` | media | Playback returns to the previous item. |
+| `connect` | system | A device, service, or live session becomes available. |
+| `disconnect` | system | A device, service, or live session goes offline. |
+| `lock` | system | Access closes or a protected state engages. |
+| `unlock` | system | Access opens or a protected state disengages. |
+| `wake` | system | A device or dormant interface becomes active. |
+| `sleep` | system | A device or interface enters a dormant state. |
+| `reward` | reward | The user receives a small unit of value. |
+| `level-up` | reward | Capability, rank, or progression increases. |
+| `achievement` | reward | A rare milestone deserves a fuller celebration. |
+| `streak` | reward | Repeated participation extends an active streak. |
+| `badge` | reward | A collectible distinction is awarded. |
+| `bonus` | reward | An unexpected extra reward is revealed. |
+| `add-to-cart` | commerce | An item enters a cart or pending order. |
+| `remove-from-cart` | commerce | An item leaves a cart or pending order. |
+| `checkout` | commerce | A cart advances into the payment flow. |
+| `purchase` | commerce | A paid transaction or value exchange completes. |
+| `coupon` | commerce | A discount or promotional code is accepted. |
+| `refund` | commerce | Value returns after a completed transaction. |
+
 ## Camera shots
 
 | Shot | Description |

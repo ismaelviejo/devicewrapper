@@ -40,8 +40,14 @@ export function sniffFile(path: string): Sniff | null {
   if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(text)) return { type: "image", format: "svg" };
   if (ascii.slice(4, 8) === "ftyp") {
     const brand = ascii.slice(8, 12);
+    if (brand === "M4A " || brand === "M4B ") return { type: "audio", format: "m4a" };
     return { type: "video", format: brand === "qt  " ? "mov" : "mp4" };
   }
+  if (ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WAVE") return { type: "audio", format: "wav" };
+  if (ascii.startsWith("ID3") || (b.length >= 2 && b[0] === 0xff && (b[1]! & 0xe0) === 0xe0 && (b[1]! & 0x06) !== 0)) return { type: "audio", format: "mp3" };
+  if (b.length >= 2 && b[0] === 0xff && (b[1]! & 0xf6) === 0xf0) return { type: "audio", format: "aac" };
+  if (ascii.startsWith("OggS")) return { type: "audio", format: "ogg" };
+  if (ascii.startsWith("fLaC")) return { type: "audio", format: "flac" };
   if (b.length >= 4 && b.readUInt32BE(0) === 0x1a45dfa3) return { type: "video", format: "webm" };
   if (b.length >= 4 && (b.readUInt32BE(0) === 0x00010000 || ascii.startsWith("OTTO") || ascii.startsWith("true"))) {
     return { type: "font", format: ascii.startsWith("OTTO") ? "otf" : "ttf" };
@@ -98,6 +104,21 @@ export async function probeVideo(path: string, ffprobePath: string): Promise<Vid
   };
 }
 
+/** Duration of an audio file in seconds (ffprobe, argument array, no shell). */
+export async function probeAudioDuration(path: string, ffprobePath: string): Promise<number> {
+  let out: string;
+  try {
+    ({ stdout: out } = await execFileAsync(ffprobePath, ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_type:format=duration", "-of", "json", path], { maxBuffer: 1 << 20 }));
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException;
+    if (err.code === "ENOENT") throw new DwError("FFPROBE_MISSING", `ffprobe was not found at '${ffprobePath}'.`, { hint: "Install FFmpeg (it includes ffprobe) or set DEVICEWRAPPER_FFPROBE_PATH." });
+    throw new DwError("AUDIO_DECODE_FAILED", `Could not read '${path}' as audio.`);
+  }
+  const j = JSON.parse(out) as { streams?: unknown[]; format?: { duration?: string } };
+  if (!j.streams?.length) throw new DwError("AUDIO_DECODE_FAILED", `'${path}' has no audio stream.`);
+  return Math.round(Number(j.format?.duration ?? 0) * 1000) / 1000;
+}
+
 export interface ImportedAsset {
   asset: Asset;
   format: string;
@@ -114,13 +135,13 @@ export async function inspectAsset(ws: Workspace, path: string, expected?: Asset
   const sniff = sniffFile(abs);
   if (!sniff) {
     throw new DwError("UNSUPPORTED_ASSET", `'${path}' is not a supported file type.`, {
-      hint: "Images: PNG, JPEG, WebP, SVG. Video: MP4, MOV, WebM. Fonts: TTF, OTF, WOFF, WOFF2. Models: GLB.",
+      hint: "Images: PNG, JPEG, WebP, SVG. Video: MP4, MOV, WebM. Audio: MP3, WAV, M4A, AAC, OGG, FLAC. Fonts: TTF, OTF, WOFF, WOFF2. Models: GLB.",
     });
   }
   if (expected && sniff.type !== expected) {
     throw new DwError("ASSET_TYPE_MISMATCH", `'${path}' is a ${sniff.type} (${sniff.format}), not a ${expected}.`);
   }
-  const limit = sniff.type === "video" ? ws.config.maxVideoBytes : ws.config.maxImageBytes;
+  const limit = sniff.type === "video" || sniff.type === "audio" ? ws.config.maxVideoBytes : ws.config.maxImageBytes;
   if (st.size > limit) {
     throw new DwError("ASSET_TOO_LARGE", `'${path}' is ${(st.size / 1048576).toFixed(1)} MB; the limit for ${sniff.type} assets is ${(limit / 1048576).toFixed(0)} MB.`);
   }
@@ -139,6 +160,8 @@ export async function inspectAsset(ws: Workspace, path: string, expected?: Asset
     asset.height = v.height;
     asset.duration = v.duration;
     asset.fps = v.fps;
+  } else if (sniff.type === "audio") {
+    asset.duration = await probeAudioDuration(abs, ws.config.ffprobePath);
   }
   return { asset, format: sniff.format };
 }

@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { DwError, type VideoFormat } from "@devicewrapper/core";
+import { DwError, type AudioPlan, type VideoFormat } from "@devicewrapper/core";
 
 /* ---------------------------------------------------------------- run */
 
@@ -202,4 +202,55 @@ export class FrameEncoder {
   kill(): void {
     this.child.kill("SIGKILL");
   }
+}
+
+/* ------------------------------------------------------------- audio */
+
+/**
+ * FFmpeg arguments that add a mixed soundtrack to an already encoded (silent) video: every clip is
+ * trimmed, resampled to 48 kHz stereo, scaled, delayed to its start, then mixed, padded/trimmed to the
+ * exact video length and passed through a limiter so overlapping sounds never clip. The video stream
+ * is copied, not re-encoded. Pure; argument arrays only.
+ */
+export function audioMuxArgs(format: VideoFormat, plan: AudioPlan, videoIn: string, output: string): string[] {
+  const inputs: string[] = ["-i", videoIn];
+  const chains: string[] = [];
+  const labels: string[] = [];
+  plan.clips.forEach((c, k) => {
+    if (c.loop) inputs.push("-stream_loop", "-1");
+    inputs.push("-i", c.file);
+    const f = [
+      `atrim=start=${num(c.skip)}`,
+      "asetpts=PTS-STARTPTS",
+      "aresample=48000",
+      "aformat=sample_fmts=fltp:channel_layouts=stereo",
+      `volume=${num(c.gain)}`,
+    ];
+    if (c.fadeIn && c.fadeIn > 0) f.push(`afade=t=in:st=0:d=${num(c.fadeIn)}`);
+    if (c.fadeOut && c.fadeOut > 0) f.push(`afade=t=out:st=${num(Math.max(0, plan.duration - c.fadeOut))}:d=${num(Math.min(c.fadeOut, plan.duration))}`);
+    if (c.loop) f.push(`atrim=end=${num(plan.duration)}`);
+    const ms = Math.round(c.at * 1000);
+    if (ms > 0) f.push(`adelay=${ms}:all=1`);
+    chains.push(`[${k + 1}:a]${f.join(",")}[a${k}]`);
+    labels.push(`[a${k}]`);
+  });
+  const mix =
+    `${labels.join("")}amix=inputs=${labels.length}:normalize=0:dropout_transition=0,` +
+    `apad=whole_dur=${num(plan.duration)},atrim=end=${num(plan.duration)},alimiter=limit=0.95:level=false[aout]`;
+  const codec =
+    format === "mp4" ? ["-c:a", "aac", "-b:a", "192k"] : format === "webm" ? ["-c:a", "libopus", "-b:a", "160k"] : ["-c:a", "pcm_s16le"];
+  return [
+    ...inputs,
+    "-filter_complex", [...chains, mix].join(";"),
+    "-map", "0:v", "-map", "[aout]",
+    "-c:v", "copy", ...codec, "-ar", "48000",
+    "-fflags", "+bitexact", "-flags:a", "+bitexact",
+    ...(format === "mp4" ? ["-movflags", "+faststart"] : []),
+    "-y", output,
+  ];
+}
+
+/** Fixed-precision numbers for filter strings (no exponent notation, stable across runs). */
+function num(v: number): string {
+  return (Math.round(v * 1e6) / 1e6).toFixed(6).replace(/\.?0+$/, "") || "0";
 }

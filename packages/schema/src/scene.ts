@@ -203,7 +203,7 @@ export type MaterialRef = z.infer<typeof MaterialRef>;
 
 /* ------------------------------------------------------------------ assets */
 
-export const ASSET_TYPES = ["image", "video", "font", "model"] as const;
+export const ASSET_TYPES = ["image", "video", "audio", "font", "model"] as const;
 export const Asset = z.object({
   type: z.enum(ASSET_TYPES),
   path: z.string().min(1).describe("Path relative to the workspace root, using '/' separators."),
@@ -416,6 +416,47 @@ export const Effect = z.discriminatedUnion("type", [
 export type Effect = z.infer<typeof Effect>;
 export type EffectType = Effect["type"];
 
+/* ------------------------------------------------------------------- audio */
+
+export const AudioCue = z
+  .object({
+    t: z.number().min(0).describe("When the sound starts, seconds on the timeline."),
+    sound: z
+      .string()
+      .regex(/^([a-z0-9-]+\/)?[a-z0-9-]+$/, "A sound is a cue name ('swipe') or pack/cue ('cinematic/swipe')")
+      .optional()
+      .describe("Built-in sound: a cue name like 'swipe' (from the scene's pack) or 'pack/cue' like 'cinematic/swipe'."),
+    asset: Id.optional().describe("Or an imported audio asset (MP3, WAV, M4A, OGG, FLAC)."),
+    gain: z.number().min(0).max(4).default(1).describe("Loudness multiplier; 1 = as designed."),
+    source: z.string().max(200).optional().describe("Who added it, e.g. 'motion:rise:phone'. Motion presets replace their own cues when re-applied."),
+  })
+  .refine((c) => (c.sound === undefined) !== (c.asset === undefined), { message: "A cue needs exactly one of 'sound' or 'asset'." })
+  .describe("One sound effect on the timeline.");
+export type AudioCue = z.infer<typeof AudioCue>;
+
+export const Music = z
+  .object({
+    asset: Id.describe("Imported audio (or video with sound) asset."),
+    volume: z.number().min(0).max(4).default(0.6),
+    offset: z.number().min(0).default(0).describe("Seconds into the file at timeline time 0."),
+    loop: z.boolean().default(true),
+    fadeIn: z.number().min(0).default(0.5).describe("Seconds."),
+    fadeOut: z.number().min(0).default(1).describe("Seconds, at the end of the rendered range."),
+  })
+  .describe("A background track under the sound effects.");
+export type Music = z.infer<typeof Music>;
+
+export const SceneAudio = z
+  .object({
+    enabled: z.boolean().default(true).describe("Include sound in video renders."),
+    pack: z.string().default("minimal").describe("Sound pack for cues given by name (see the sounds resource). 'minimal' is dry and subtle; 'cinematic' has deeper impacts."),
+    volume: z.number().min(0).max(4).default(1).describe("Master volume for effects and music."),
+    cues: z.array(AudioCue).max(500).default([]),
+    music: Music.optional(),
+  })
+  .describe("Sound for video renders: effects on the timeline (motion presets add them) and optional music. Stills ignore it.");
+export type SceneAudio = z.infer<typeof SceneAudio>;
+
 /* ------------------------------------------------------------------ render */
 
 export const STILL_FORMATS = ["png", "jpeg", "webp"] as const;
@@ -463,6 +504,7 @@ export const Scene = z
     assets: z.record(Id, Asset).default({}),
     animation: Animation.default({ tracks: [] }),
     effects: z.array(Effect).default([]),
+    audio: SceneAudio.default({ enabled: true, pack: "minimal", volume: 1, cues: [] }),
     variables: z.record(z.string(), z.string()).default({}).describe("Base text variables used by {{name}} placeholders."),
     locales: z
       .record(z.string().regex(/^[a-zA-Z]{2,3}([-_][a-zA-Z0-9]{2,8})*$/, "Locale codes look like 'en', 'es', 'pt-BR'"), z.record(z.string(), z.string()))

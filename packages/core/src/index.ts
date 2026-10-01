@@ -20,3 +20,4 @@ export * from "./motion.js";
 export * from "./compose.js";
 export * from "./pose.js";
 export * from "./templates.js";
+export * from "./audio.js";
