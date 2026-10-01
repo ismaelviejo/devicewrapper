@@ -13,7 +13,8 @@ export function tmpWorkspace(): { root: string; cleanup: () => void } {
 }
 
 export function makeEngine(root: string, backend: RenderBackend | null = null, env: Record<string, string> = {}): Engine {
-  const config = loadConfig({ DEVICEWRAPPER_WORKSPACE: root, ...env }, root);
+  // Keep tests away from the real ~/.devicewrapper/templates.
+  const config = loadConfig({ DEVICEWRAPPER_WORKSPACE: root, DEVICEWRAPPER_TEMPLATES_DIR: join(root, ".global-templates"), ...env }, root);
   return new Engine({ config, backend });
 }
 

@@ -1,13 +1,11 @@
-import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import { Id, type Scene } from "@devicewrapper/schema";
 import { z } from "zod";
-import { BUILTIN_ASSETS_DIR, type DeviceRegistry } from "./devices.js";
+import type { DeviceRegistry } from "./devices.js";
 import { DwError, schemaError } from "./errors.js";
 import { ensureAsset } from "./assets.js";
 import { LAYOUT_NAMES, applyLayout, type LayoutName } from "./layout.js";
 import { MOTION_NAMES, applyMotion } from "./motion.js";
-import { addNode, createScene, mergePatch, setCamera, setVariables, updateNode, updateScene } from "./ops.js";
+import { addNode, createScene, setCamera, setVariables, updateNode, updateScene } from "./ops.js";
 import { CAMERA_SHOTS } from "./presets.js";
 import { STYLES, STYLE_NAMES, applyStyle } from "./style.js";
 import type { Workspace } from "./workspace.js";
@@ -276,65 +274,6 @@ export async function composeScene(ws: Workspace, devices: DeviceRegistry, input
 
   if (brief.render) s = updateScene(s, { render: brief.render });
   return s;
-}
-
-/* -------------------------------------------------------------- templates */
-
-export const TemplateFile = z.object({
-  name: Id,
-  title: z.string(),
-  description: z.string(),
-  screens: z.number().int().min(0).describe("How many screenshots the template expects ({{screen1}} … {{screenN}})."),
-  variables: z.array(z.string()).default([]).describe("Text variables the template uses."),
-  brief: z.record(z.string(), z.unknown()),
-});
-export type TemplateFile = z.infer<typeof TemplateFile>;
-
-export function loadTemplates(extraDirs: string[] = []): Map<string, TemplateFile & { source: string }> {
-  const out = new Map<string, TemplateFile & { source: string }>();
-  for (const dir of [join(BUILTIN_ASSETS_DIR, "templates"), ...extraDirs]) {
-    if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir).sort()) {
-      if (!f.endsWith(".json")) continue;
-      const path = join(dir, f);
-      const r = TemplateFile.safeParse(JSON.parse(readFileSync(path, "utf8")));
-      if (!r.success) throw schemaError(r.error.issues, "", `Template ${path}`);
-      out.set(r.data.name, { ...r.data, source: path });
-    }
-  }
-  return out;
-}
-
-function replaceDeep(v: unknown, fn: (s: string) => string | undefined): unknown {
-  if (typeof v === "string") return fn(v);
-  if (Array.isArray(v)) return v.map((x) => replaceDeep(x, fn)).filter((x) => x !== undefined);
-  if (v && typeof v === "object") {
-    const o: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v)) {
-      const r = replaceDeep(x, fn);
-      if (r !== undefined) o[k] = r;
-    }
-    return o;
-  }
-  return v;
-}
-
-/**
- * Turns a template + screenshots (+ variables and brief overrides) into a brief.
- * {{screenN}} placeholders are replaced; with fewer screens than slots, screens repeat in order.
- * A device whose screen slot has no screenshot at all shows a black screen.
- */
-export function expandTemplate(tpl: TemplateFile, screens: string[], variables: Record<string, string> = {}, overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  const brief = replaceDeep(structuredClone(tpl.brief), (s) => {
-    const m = /^\{\{screen(\d+)\}\}$/.exec(s);
-    if (!m) return s;
-    if (screens.length === 0) return undefined;
-    return screens[(Number(m[1]) - 1) % screens.length];
-  }) as Record<string, unknown>;
-  const merged = mergePatch(brief, overrides) as Record<string, unknown>;
-  const vars = { ...((merged.variables as Record<string, string>) ?? {}), ...variables };
-  if (Object.keys(vars).length) merged.variables = vars;
-  return merged;
 }
 
 /** Replace a device's screen after composition (helper for tools). */

@@ -18,3 +18,5 @@ export * from "./layout.js";
 export * from "./style.js";
 export * from "./motion.js";
 export * from "./compose.js";
+export * from "./pose.js";
+export * from "./templates.js";

@@ -108,7 +108,7 @@ for (const id of devices.ids()) {
 }
 cmd += `\nAny hex color works too. Add models as JSON in \`.devicewrapper/devices/\` (same format as \`packages/core/assets/devices/*.json\`).\n`;
 cmd += `\n## Templates\n\nUse with \`compose_scene { template, screens }\`. See [templates.md](templates.md) to write your own.\n\n| Template | Screens | Style | Description |\n|---|---|---|---|\n`;
-for (const t of loadTemplates().values()) cmd += `| \`${t.name}\` | ${t.screens} | ${t.brief.style ?? ""} | ${cell(t.description)} |\n`;
+for (const t of loadTemplates().values()) cmd += `| \`${t.name}\` | ${t.screens} | ${t.brief?.style ?? ""} | ${cell(t.description)} |\n`;
 cmd += `\n## Styles\n\n| Style | Lighting | Floor | Description |\n|---|---|---|---|\n`;
 for (const [k, v] of Object.entries(STYLES)) cmd += `| \`${k}\` | ${v.lighting}${v.environment ? ` + ${v.environment.preset} env` : ""} | ${v.floor.type} | ${cell(v.description)} |\n`;
 cmd += `\n## Layouts\n\n| Layout | Description |\n|---|---|\n`;

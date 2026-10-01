@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep, posix } from "node:path";
 import { BUILTIN_ASSETS_DIR } from "./devices.js";
 import { DwError } from "./errors.js";
@@ -8,6 +9,8 @@ export type RenderMode = "deterministic" | "fast";
 export interface DwConfig {
   workspaceRoot: string;
   dataDir: string;
+  /** Templates shared by every workspace (default ~/.devicewrapper/templates). */
+  templatesDir: string;
   outputDir: string;
   tmpDir: string;
   allowedRoots: string[];
@@ -79,6 +82,7 @@ export function loadConfig(env: Env = process.env, cwd: string = process.cwd()):
   const cfg: DwConfig = {
     workspaceRoot,
     dataDir,
+    templatesDir: resolve(workspaceRoot, pick("DEVICEWRAPPER_TEMPLATES_DIR", "templatesDir") ?? join(homedir(), ".devicewrapper", "templates")),
     outputDir: resolve(workspaceRoot, pick("DEVICEWRAPPER_OUTPUT_DIR", "outputDir") ?? join(dataDir, "output")),
     tmpDir: resolve(workspaceRoot, pick("DEVICEWRAPPER_TMP_DIR", "tmpDir") ?? join(dataDir, "tmp")),
     allowedRoots: [workspaceRoot, ...extraRoots],
@@ -113,6 +117,7 @@ export class Workspace {
   readonly jobsDir: string;
   readonly userDevicesDir: string;
   readonly userTemplatesDir: string;
+  readonly globalTemplatesDir: string;
 
   constructor(config: DwConfig) {
     this.config = config;
@@ -121,6 +126,7 @@ export class Workspace {
     this.jobsDir = join(config.dataDir, "jobs");
     this.userDevicesDir = join(config.dataDir, "devices");
     this.userTemplatesDir = join(config.dataDir, "templates");
+    this.globalTemplatesDir = config.templatesDir;
   }
 
   ensureDirs(): void {

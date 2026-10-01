@@ -5,7 +5,9 @@ import { STYLE_NAMES } from "@devicewrapper/core";
 export const INSTRUCTIONS = `devicewrapper renders 3D device mockups (phones, tablets, laptops, monitors, watches) for app marketing: stills and videos, headless, deterministic.
 Fastest path: compose_scene (a brief, or a template from list_templates + your screenshot paths) → render_preview (look at the image) → refine with apply_layout / apply_style / apply_motion / set_camera / update_node → render.
 Low-level path: create_scene → add_device (screen: 'path/to/screenshot.png') → set_camera { frame: { shot } } → set_lights / set_background → set_track.
-Units are meters and degrees; +Y up; devices face +Z. Mutating tools return 'issues' when something needs attention. Read devicewrapper://guide for tips.`;
+Units are meters and degrees; +Y up; devices face +Z. Mutating tools return 'issues' when something needs attention. Read devicewrapper://guide for tips.
+Reuse: list_templates also holds compositions and single movements saved with save_template (global = every project, project = this workspace); screenshots are slots, motion/camera/look are kept. Play a movement with apply_motion { clip }.
+Save review: after presenting a finished composition (a final render), ask the user whether to save any of its movements as templates. If yes, list every candidate — each whole scene and each movement inside it (split at the camera's holds: spin reveal, punch-in, pull-out, …) with its time range, a one-line description and preview frames (render_preview at a few times) — flag near-duplicates, let the user pick, confirm name and scope per pick, and only then call save_template. Never save without that confirmation.`;
 
 export const GUIDE = `# devicewrapper guide
 
@@ -55,6 +57,21 @@ Low-level building blocks are always available: create_scene, add_device, add_no
 - Floating phone: apply_motion 'float' (or position y oscillating ±0.004 m with easeInOutSine keyframes).
 - Motions layer: apply_motion 'float' then 'rise' wraps the device in a group so both play.
 - Preview motion by rendering previews at several \`time\` values before a full video render.
+
+## Rhythm reels: fast spins, punch-ins, pull-outs
+
+Punchy app reels alternate a close-up on one spot of the screen with a pull-out to the full device, on the beat.
+- \`apply_motion { preset: 'spin-reveal', duration: 0.8, amount: 380, easing: 'easeOutExpo' }\` for a fast reveal.
+- \`apply_motion { preset: 'focus', target: 'phone', point: [0.5, 0.3], amount: 0.4, start: 0.75, hold: 0.4 }\` rushes the camera in to that spot of the display (point is 0..1 from the top-left of the screen, amount is the fraction of the screen height in view). It fits any screenshot: look at the screenshot and pick the spot worth showing.
+- \`apply_motion { preset: 'reframe', start: 1.5, hold: 1.2 }\` pulls back out to the base camera (or \`shot\` / \`padding\` / \`shift\` for a new framing). Show headlines only on these wide beats (text opacity tracks), never over a close-up.
+- Moves default to easeInOutExpo; each one only changes its own time window, so they chain. At 120 BPM a beat is 0.5 s: start moves on beats.
+
+## Saving and reusing compositions
+
+- \`save_template { sceneId, name, scope }\` saves a whole scene (kind 'scene'): every device screen becomes a \`{{screenN}}\` slot and every text a \`{{variable}}\`. \`compose_scene { template, screens, variables }\` replays it on any screenshots.
+- \`save_template { sceneId, name, kind: 'motion', range: [t0, t1] }\` saves one movement: the camera, the device and the text tracks in that window, relative to the device and its screen size. \`apply_motion { sceneId, clip: name, start }\` plays it on any scene and device.
+- scope 'global' (every workspace, default ~/.devicewrapper/templates) or 'project' (this workspace's .devicewrapper/templates). A project template overrides a global one of the same name. Keep brand colors in project templates and neutral looks in global ones.
+- Save only what the user picked: after a finished composition, offer a review of every candidate movement (see the instructions) before calling save_template.
 
 ## Video
 
