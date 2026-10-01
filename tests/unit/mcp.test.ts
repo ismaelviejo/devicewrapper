@@ -60,6 +60,7 @@ describe("MCP surface", () => {
         "remove_track",
         "render",
         "render_preview",
+        "save_template",
         "set_background",
         "set_camera",
         "set_effects",
@@ -172,6 +173,40 @@ describe("MCP workflow", () => {
     expect((await call("validate_scene", { sceneId: "phone-pair" })).data.valid).toBe(true);
     const direct = await call("compose_scene", { name: "Direct", devices: [{ model: "watch-45", screen: "a.png" }], style: "sunset", text: [{ content: "Hi" }] });
     expect(direct.data.sceneId).toBe("direct");
+  });
+
+  it("saves a liked composition and a single movement, and reuses both", async () => {
+    await writeScreenshot(join(root, "a.png"), 118, 256);
+    await writeScreenshot(join(root, "b.png"), 118, 256, "#ff7a4f");
+    await call("compose_scene", { id: "liked", devices: [{ screen: "a.png" }], style: "dark-studio", text: [{ content: "We make the calls." }], duration: 4 });
+    expect((await call("apply_motion", { sceneId: "liked", preset: "spin-reveal", duration: 0.8 })).isError).toBe(false);
+    const f = await call("apply_motion", { sceneId: "liked", preset: "focus", point: [0.5, 0.3], start: 0.75, hold: 0.4 });
+    expect(f.data.animated.map((x: { property: string }) => x.property)).toEqual(["position", "target"]);
+    expect((await call("apply_motion", { sceneId: "liked" })).data.error.code).toBe("MISSING_ARGUMENT");
+
+    const saved = await call("save_template", { sceneId: "liked", name: "punch-rhythm", scope: "global", description: "Spin, slam in, pull out" });
+    expect(saved.data.template).toMatchObject({ kind: "scene", scope: "global", screens: 1, variables: ["text"] });
+    const clip = await call("save_template", { sceneId: "liked", name: "slam-in", kind: "motion", range: [0.75, 1.5] });
+    expect(clip.data.template).toMatchObject({ kind: "motion", scope: "project", duration: 0.75 });
+    expect((await call("save_template", { sceneId: "liked", name: "slam-in", kind: "motion" })).data.error.code).toBe("TEMPLATE_EXISTS");
+
+    const list = await call("list_templates");
+    const byName = Object.fromEntries(list.data.templates.map((t: { name: string }) => [t.name, t]));
+    expect(byName["punch-rhythm"]).toMatchObject({ kind: "scene", scope: "global" });
+    expect(byName["slam-in"]).toMatchObject({ kind: "motion", scope: "project", duration: 0.75 });
+    expect(byName["hero-phone"]).toMatchObject({ kind: "brief", scope: "builtin" });
+
+    const again = await call("compose_scene", { template: "punch-rhythm", screens: ["b.png"], variables: { text: "Done." } });
+    expect(again.isError).toBe(false);
+    expect(again.data.template).toMatchObject({ kind: "scene", scope: "global" });
+    expect((await call("compose_scene", { template: "slam-in" })).data.error.code).toBe("WRONG_TEMPLATE_KIND");
+
+    await call("compose_scene", { id: "plain", devices: [{ model: "tablet", screen: "b.png" }], duration: 2 });
+    const played = await call("apply_motion", { sceneId: "plain", clip: "slam-in", start: 0.5 });
+    expect(played.isError).toBe(false);
+    expect(played.data.clip).toBe("slam-in");
+    expect((await call("apply_motion", { sceneId: "plain", clip: "punch-rhythm" })).data.error.code).toBe("WRONG_TEMPLATE_KIND");
+    expect((await call("validate_scene", { sceneId: "plain" })).data.valid).toBe(true);
   });
 
   it("reports NOT_IMPLEMENTED for rendering when no renderer is attached", async () => {

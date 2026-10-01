@@ -92,6 +92,8 @@ Use with `compose_scene { template, screens }`. See [templates.md](templates.md)
 | `pan-right` | camera | Camera and target slide right (amount default 0.12). |
 | `crane-up` | camera | Camera rises while keeping its target (amount = fraction of distance, default 0.25). |
 | `zoom-in` | camera | Narrows the field of view (amount = fraction, default 0.2). |
+| `focus` | camera | Camera rushes in to a point on a device's screen (target = device, default the one nearest the camera's aim; point = [x, y] on the display, 0..1 from top-left, default [0.5, 0.3]; amount = fraction of the screen height in view, default 0.4; angle = [yaw, pitch] off the screen normal, default [8, 4]), then holds `hold` seconds with a slow drift. Default 0.35 s, easeInOutExpo. |
+| `reframe` | camera | Camera pulls back out: to the scene's base camera, or to an auto-framed shot when shot / padding / shift are given (framed on the devices as they are posed at that moment), then holds `hold` seconds with a slow push. Default 0.45 s, easeInOutExpo. |
 
 ## Camera shots
 

@@ -141,3 +141,18 @@ Choices made while building, with the reason for each. Where the implementation 
 - Videos render on one page at a time; spreading frames across pages would help on many-core machines.
 - The first render after the server starts takes about 10–20 s (Chromium start, shader compile, texture upload).
 - Scripts outside Latin/Cyrillic/Greek/Vietnamese use system fonts (warned `SYSTEM_FONT_FALLBACK`); import a TTF/OTF asset for identical output across machines.
+
+## After v1: saved compositions, motion clips, screen-relative camera moves
+
+Asked for by real use: a fast "rhythm" reel (spin reveal, camera slamming in to one spot of the screen, pull-out for the headline, punch back in, on a 120 BPM grid) was built from hand-made keyframes, and the user wanted to reuse its motion with other projects' screenshots. Briefs couldn't hold that.
+
+**Templates gained two kinds, alongside `brief`.** `scene` is a whole scene with device screens turned into `{{screenN}}` slots and text into `{{variables}}`; `motion` is one movement cut out of a scene. A template file holds exactly one of `brief`, `scene` or `motion`. `save_template` writes them, so the user never edits JSON. *Departure from PLAN.md §6, which kept templates to briefs.*
+
+**Motion clips are stored relative to the device.** Camera points in the device's base frame, in units of its screen height; device position and rotation as offsets from its base pose. That makes a clip independent of where the device stands and how big it is. Euler offsets are exact for the usual turns around Y and approximate for compound rotations. Cutting a window out of a track copies whole segments with their easing, and bakes a segment the window cuts through (or a spline) at 30 samples per second, so the replay matches.
+
+**Clips and the new camera moves splice instead of replacing.** Each changes only its own time window on a track, so several can be chained on one timeline. `focus` and `reframe` are defined by what the camera should see on arrival, computed from the devices' animated pose at that moment (`worldPose`, `posedScene`). `focus` aims at a normalized point of the display and sizes the view as a fraction of the screen height, so it works on any screenshot and device (laptop lids included). With several devices and no target it picks the one nearest the camera's aim, so every preset still works without options.
+
+**A global template folder** (`~/.devicewrapper/templates`, configurable) is shared by all workspaces; project templates override it, and it overrides built-ins. Tests point it at a temp folder. It is written only by `save_template`, with names restricted to IDs; it is not added to the general read/write roots.
+
+**Save only on request.** The server instructions tell agents to offer a review of every candidate movement after a finished composition and to save only what the user picks.
+

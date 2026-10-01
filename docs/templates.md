@@ -65,6 +65,34 @@ Brief fields in short:
 
 Composition is deterministic: the same brief gives the same scene.
 
+## Saved compositions and movements
+
+Briefs describe a setup; they can't hold hand-made keyframes. When a composition is worth keeping as it is (its camera moves, timing and look), save it from the scene with `save_template`. Two more template kinds hold those:
+
+| Kind | Saved with | Holds | Reused with |
+|---|---|---|---|
+| `brief` | written by hand (above) | a `compose_scene` brief | `compose_scene { template, screens }` |
+| `scene` | `save_template { sceneId, name }` | the whole scene: devices, look, camera, every keyframe | `compose_scene { template, screens, variables }` |
+| `motion` | `save_template { sceneId, name, kind: 'motion', range: [t0, t1] }` | one movement: camera, one device and text tracks over a time window | `apply_motion { sceneId, clip, start, target? }` |
+
+**Screenshots are per project, motion is reused.** In a scene template each device screen becomes a `{{screenN}}` slot (numbered in node order) and each text becomes a `{{variable}}` named after its node, with the original text as the default. Its other screen settings (fit, focus, glare) are kept. A scene template takes only `name`, `preset`, `canvas`, `duration`, `render`, `style`, `variables` and `locales` as overrides; refine the rest after composing.
+
+**Movements are relative.** A motion clip stores camera points in the device's own frame, in units of its screen height, and device position and rotation as offsets from its base pose. So a clip saved on a phone at one angle plays the same on a phone (or tablet) placed anywhere. It replaces only its own time window on each track, so clips chain: a spin at 0 s, a punch-in at 0.75 s, a pull-out at 1.5 s. Text tracks are replayed on the target scene's text nodes in order (`text1`, `text2`, …) and skipped if there are fewer.
+
+Close-ups land on the same part of the screen as in the original (for example the top third). To aim them at a different spot of another app's screen, use the `focus` motion: `apply_motion { preset: 'focus', target: 'phone', point: [0.5, 0.6], start: 0.75 }`.
+
+### Where templates live
+
+| Scope | Folder | Seen by |
+|---|---|---|
+| `builtin` | `packages/core/assets/templates/` | everyone |
+| `global` | `~/.devicewrapper/templates/` (`DEVICEWRAPPER_TEMPLATES_DIR` or `templatesDir` in config.json to change it) | every workspace on this machine |
+| `project` | `<workspace>/.devicewrapper/templates/` | this workspace |
+
+A template with the same name in a later scope wins: project over global over built-in. `list_templates` shows each template's `kind` and `scope`.
+
+A scene template that still references a file other than a screenshot (a background image, a font) warns when saved: that file only resolves in a workspace that has it.
+
 ## Styles, lighting presets and shots
 
 Built-in only for now (`packages/core/assets/presets/styles.json`, `lighting.json`, `shots.json`). A style sets the background, a lighting preset (lights + environment), an optional environment override, effects, a floor, a text color and suggested device colors. To make a look reusable per project, put it in a template's brief, or apply a style and adjust it with `set_background` / `set_lights` / `set_effects`.

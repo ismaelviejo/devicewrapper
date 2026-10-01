@@ -64,6 +64,21 @@ Low-level building blocks are always available: create_scene, add_device, add_no
 - Motions layer: apply_motion 'float' then 'rise' wraps the device in a group so both play.
 - Preview motion by rendering previews at several `time` values before a full video render.
 
+#### Rhythm reels: fast spins, punch-ins, pull-outs
+
+Punchy app reels alternate a close-up on one spot of the screen with a pull-out to the full device, on the beat.
+- `apply_motion { preset: 'spin-reveal', duration: 0.8, amount: 380, easing: 'easeOutExpo' }` for a fast reveal.
+- `apply_motion { preset: 'focus', target: 'phone', point: [0.5, 0.3], amount: 0.4, start: 0.75, hold: 0.4 }` rushes the camera in to that spot of the display (point is 0..1 from the top-left of the screen, amount is the fraction of the screen height in view). It fits any screenshot: look at the screenshot and pick the spot worth showing.
+- `apply_motion { preset: 'reframe', start: 1.5, hold: 1.2 }` pulls back out to the base camera (or `shot` / `padding` / `shift` for a new framing). Show headlines only on these wide beats (text opacity tracks), never over a close-up.
+- Moves default to easeInOutExpo; each one only changes its own time window, so they chain. At 120 BPM a beat is 0.5 s: start moves on beats.
+
+#### Saving and reusing compositions
+
+- `save_template { sceneId, name, scope }` saves a whole scene (kind 'scene'): every device screen becomes a `{{screenN}}` slot and every text a `{{variable}}`. `compose_scene { template, screens, variables }` replays it on any screenshots.
+- `save_template { sceneId, name, kind: 'motion', range: [t0, t1] }` saves one movement: the camera, the device and the text tracks in that window, relative to the device and its screen size. `apply_motion { sceneId, clip: name, start }` plays it on any scene and device.
+- scope 'global' (every workspace, default ~/.devicewrapper/templates) or 'project' (this workspace's .devicewrapper/templates). A project template overrides a global one of the same name. Keep brand colors in project templates and neutral looks in global ones.
+- Save only what the user picked: after a finished composition, offer a review of every candidate movement (see the instructions) before calling save_template.
+
 #### Video
 
 - Formats: mp4 (H.264, most compatible), webm (VP9; supports transparency), mov (ProRes 4444; transparency, for editing).

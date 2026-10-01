@@ -86,6 +86,23 @@ export function quatRotate(q: Quat, v: Vec3): Vec3 {
   ];
 }
 
+/** Hamilton product a * b: rotating by the result = rotating by b, then by a. */
+export function quatMultiply(a: Quat, b: Quat): Quat {
+  const [ax, ay, az, aw] = a;
+  const [bx, by, bz, bw] = b;
+  return [
+    aw * bx + ax * bw + ay * bz - az * by,
+    aw * by - ax * bz + ay * bw + az * bx,
+    aw * bz + ax * by - ay * bx + az * bw,
+    aw * bw - ax * bx - ay * by - az * bz,
+  ];
+}
+
+/** Inverse of a unit quaternion. */
+export function quatConjugate(q: Quat): Quat {
+  return [-q[0], -q[1], -q[2], q[3]];
+}
+
 /* ------------------------------------------------------------------ mat4 */
 
 /** Column-major 4x4 matrix, like Three.js `Matrix4.elements`. */

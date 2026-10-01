@@ -3,8 +3,10 @@ import { boundsOf, deviceSize, worldPoints } from "./bounds.js";
 import type { DeviceRegistry } from "./devices.js";
 import { DwError } from "./errors.js";
 import { allocateId } from "./ids.js";
-import { easingFn, v3 } from "./math.js";
-import { addNode, setTrack, updateNode, updateScene } from "./ops.js";
+import { easingFn, quatRotate, v3 } from "./math.js";
+import { addNode, setCamera, setTrack, updateNode, updateScene } from "./ops.js";
+import { posedScene, screenFrameLocal, screenPoint, spliceTrack, toWorld, worldPose } from "./pose.js";
+import { evaluateFrame } from "./timeline.js";
 
 /**
  * Motion presets: named, parameterized animations built from keyframes relative to the target's
@@ -37,6 +39,16 @@ export const MOTIONS: Record<string, { kind: MotionKind; description: string }> 
   "pan-right": { kind: "camera", description: "Camera and target slide right (amount default 0.12)." },
   "crane-up": { kind: "camera", description: "Camera rises while keeping its target (amount = fraction of distance, default 0.25)." },
   "zoom-in": { kind: "camera", description: "Narrows the field of view (amount = fraction, default 0.2)." },
+  focus: {
+    kind: "camera",
+    description:
+      "Camera rushes in to a point on a device's screen (target = device, default the one nearest the camera's aim; point = [x, y] on the display, 0..1 from top-left, default [0.5, 0.3]; amount = fraction of the screen height in view, default 0.4; angle = [yaw, pitch] off the screen normal, default [8, 4]), then holds `hold` seconds with a slow drift. Default 0.35 s, easeInOutExpo.",
+  },
+  reframe: {
+    kind: "camera",
+    description:
+      "Camera pulls back out: to the scene's base camera, or to an auto-framed shot when shot / padding / shift are given (framed on the devices as they are posed at that moment), then holds `hold` seconds with a slow push. Default 0.45 s, easeInOutExpo.",
+  },
 };
 export const MOTION_NAMES = Object.keys(MOTIONS);
 
@@ -52,6 +64,18 @@ export interface MotionOptions {
   stagger?: number;
   /** 'auto' wraps the target in a group if the property is already animated, so motions layer. */
   stack?: "auto" | "replace";
+  /** focus: point on the display, [x, y] 0..1 from the top-left. */
+  point?: [number, number];
+  /** focus: [yaw, pitch] degrees off the screen normal. */
+  angle?: [number, number];
+  /** focus / reframe: seconds to hold after arriving (with a slow drift). */
+  hold?: number;
+  /** focus / reframe: how far the camera keeps moving during the hold, as a fraction of its distance. */
+  drift?: number;
+  /** reframe: auto-frame the devices with this shot instead of returning to the base camera. */
+  shot?: string;
+  padding?: number;
+  shift?: [number, number];
 }
 
 export interface MotionResult {
@@ -288,9 +312,106 @@ function cameraKeyframes(scene: Scene, preset: string, start: number, duration: 
   }
 }
 
+/**
+ * The device a device-relative motion acts on: `target`, or the scene's only device. With several
+ * devices, `nearest` picks the one closest to where the camera looks; otherwise it's an error.
+ */
+export function resolveDevice(scene: Scene, target: string | undefined, what: string, nearest = false): string {
+  if (target) {
+    const n = scene.nodes.find((x) => x.id === target);
+    if (!n || n.kind !== "device") throw new DwError("INVALID_MOTION_TARGET", `${what} needs a device as target; '${target}' is ${n ? `a ${n.kind}` : "missing"}.`);
+    return target;
+  }
+  const ids = scene.nodes.filter((n) => n.kind === "device").map((n) => n.id);
+  if (ids.length === 0) throw new DwError("NOTHING_TO_ANIMATE", "There are no devices in the scene.");
+  if (ids.length > 1 && nearest) {
+    const d = (id: string) => v3.len(v3.sub(worldPose(scene, id).p, scene.camera.target));
+    return [...ids].sort((a, b) => d(a) - d(b))[0]!;
+  }
+  if (ids.length > 1) throw new DwError("AMBIGUOUS_TARGET", `${what} needs to know which device to use: ${ids.join(", ")}.`, { hint: "Pass target: '<device id>'." });
+  return ids[0]!;
+}
+
+/**
+ * focus / reframe: camera moves defined by what the camera should see when it arrives, computed from
+ * the devices' animated pose at that moment, so they fit any device and any screenshot. Both splice
+ * into existing camera tracks (only their own time window changes), so moves chain on one timeline.
+ */
+function cameraMove(scene: Scene, opts: MotionOptions, devices: DeviceRegistry): MotionResult {
+  const focus = opts.preset === "focus";
+  const start = opts.start ?? 0;
+  const duration = opts.duration ?? (focus ? 0.35 : 0.45);
+  const hold = opts.hold ?? 0;
+  if (hold < 0) throw new DwError("INVALID_VALUE", "hold must be >= 0 seconds.", { path: "hold" });
+  const ez = opts.easing ?? "easeInOutExpo";
+  const tArrive = start + duration, tEnd = tArrive + hold;
+  const now = evaluateFrame(scene, start).camera;
+  const at = evaluateFrame(scene, tArrive);
+  let arrive: { position: Vec3; target: Vec3 };
+  let settle: Vec3;
+  if (focus) {
+    const id = resolveDevice(scene, opts.target === "camera" ? undefined : opts.target, "'focus'", true);
+    const node = scene.nodes.find((n) => n.id === id);
+    if (node?.kind !== "device") throw new DwError("INVALID_MOTION_TARGET", `'focus' needs a device; '${id}' is not one.`);
+    const def = devices.require(node.model);
+    const point = opts.point ?? [0.5, 0.3];
+    if (point.some((v) => v < 0 || v > 1)) throw new DwError("INVALID_VALUE", `point must be [x, y] between 0 and 1 (got ${JSON.stringify(point)}).`, { path: "point" });
+    const amount = opts.amount ?? 0.4;
+    if (!(amount > 0)) throw new DwError("INVALID_VALUE", "amount (fraction of the screen height in view) must be > 0.", { path: "amount" });
+    const sf = screenFrameLocal(def, at.nodes[id]?.lidAngle ?? node.lidAngle);
+    const pose = worldPose(scene, id, tArrive);
+    const P = toWorld(pose, screenPoint(sf, point));
+    const [yaw, pitch] = (opts.angle ?? [8, 4]).map((d) => (d * Math.PI) / 180) as [number, number];
+    const dLocal = v3.add(v3.add(v3.scale(sf.right, Math.sin(yaw) * Math.cos(pitch)), v3.scale(sf.up, Math.sin(pitch))), v3.scale(sf.normal, Math.cos(yaw) * Math.cos(pitch)));
+    const dir = v3.norm(quatRotate(pose.q, dLocal));
+    const dist = (amount * sf.height * pose.s) / 2 / Math.tan((at.camera.fov * Math.PI) / 360);
+    arrive = { target: vr(P), position: vr(v3.add(P, v3.scale(dir, dist))) };
+    settle = vr(v3.add(P, v3.scale(dir, dist * (1 - (opts.drift ?? 0.1)))));
+  } else {
+    let cam = scene.camera;
+    if (opts.shot !== undefined || opts.padding !== undefined || opts.shift !== undefined) {
+      const posed = posedScene(scene, tArrive);
+      const targets = opts.target && opts.target !== "camera" ? [opts.target] : undefined;
+      cam = setCamera(posed, { frame: { shot: (opts.shot ?? "hero") as never, ...(targets ? { targets } : {}), ...(opts.padding !== undefined ? { padding: opts.padding } : {}), ...(opts.shift ? { shift: opts.shift } : {}) } }, devices).camera;
+    }
+    arrive = { position: cam.position, target: cam.target };
+    settle = vr(v3.add(cam.position, v3.scale(v3.sub(cam.target, cam.position), opts.drift ?? 0.05)));
+  }
+  const kf = (from: Vec3, to: Vec3, end: Vec3): Kf[] => [
+    { t: r6(start), value: vr(from), easing: ez },
+    { t: r6(tArrive), value: to, easing: hold > 0 ? "linear" : ez },
+    ...(hold > 0 ? [{ t: r6(tEnd), value: end, easing: ez }] : []),
+  ];
+  let s = scene;
+  for (const [property, keyframes] of [
+    ["position", kf(now.position, arrive.position, settle)],
+    ["target", kf(now.target, arrive.target, arrive.target)],
+  ] as const) {
+    const existing = s.animation.tracks.find((t) => t.target === "camera" && t.property === property);
+    // Sharp moves: straight lines with eased timing, unless the track is an explicit spline (e.g. an orbit).
+    const interpolation = !existing || existing.interpolation === "auto" ? "linear" : undefined;
+    s = spliceTrack(s, "camera", property, keyframes as never, [start, tEnd], interpolation);
+  }
+  const result: MotionResult = {
+    scene: s,
+    animated: [
+      { target: "camera", property: "position", from: start, to: tEnd },
+      { target: "camera", property: "target", from: start, to: tEnd },
+    ],
+    wrapped: [],
+  };
+  if (tEnd > s.canvas.duration + 1e-9) {
+    const d = Math.ceil(tEnd * 100) / 100;
+    result.scene = updateScene(s, { canvas: { duration: d } });
+    result.durationExtended = d;
+  }
+  return result;
+}
+
 export function applyMotion(scene: Scene, opts: MotionOptions, devices: DeviceRegistry): MotionResult {
   const spec = MOTIONS[opts.preset];
   if (!spec) throw new DwError("UNKNOWN_MOTION", `Unknown motion '${opts.preset}'. Use one of: ${MOTION_NAMES.join(", ")}.`);
+  if (opts.preset === "focus" || opts.preset === "reframe") return cameraMove(scene, opts, devices);
   let s = scene;
   const { start, duration } = timing(s, opts.preset, opts);
   const animated: MotionResult["animated"] = [];

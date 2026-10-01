@@ -2,7 +2,7 @@
 
 _Generated from the live server by `pnpm run docs:gen` — do not edit by hand._
 
-31 tools. Every tool returns JSON text; errors come back with `isError: true` and `{ error: { code, message, path?, hint? } }`.
+32 tools. Every tool returns JSON text; errors come back with `isError: true` and `{ error: { code, message, path?, hint? } }`.
 
 - **Compose (start here):** [`compose_scene`](#compose_scene), [`list_templates`](#list_templates), [`apply_layout`](#apply_layout), [`apply_style`](#apply_style), [`apply_motion`](#apply_motion)
 - **Scenes:** [`create_scene`](#create_scene), [`get_scene`](#get_scene), [`list_scenes`](#list_scenes), [`update_scene`](#update_scene), [`duplicate_scene`](#duplicate_scene), [`delete_scene`](#delete_scene), [`validate_scene`](#validate_scene), [`import_scene`](#import_scene), [`export_scene`](#export_scene)
@@ -10,6 +10,7 @@ _Generated from the live server by `pnpm run docs:gen` — do not edit by hand._
 - **Look:** [`set_camera`](#set_camera), [`set_lights`](#set_lights), [`set_background`](#set_background), [`set_effects`](#set_effects), [`set_variables`](#set_variables)
 - **Animation:** [`set_track`](#set_track), [`remove_track`](#remove_track)
 - **Rendering:** [`render_preview`](#render_preview), [`render`](#render), [`get_render_job`](#get_render_job), [`list_render_jobs`](#list_render_jobs), [`cancel_render_job`](#cancel_render_job)
+- **Other:** [`save_template`](#save_template)
 
 ## Compose (start here)
 
@@ -24,7 +25,9 @@ Localization: text content may use {{variables}}; variables: { headline: 'Train 
 motion: preset names as in apply_motion (e.g. 'float', 'slow-turn', 'push-in'), or objects { preset, target?, start?, duration?, amount? }; target 'all' moves the whole arrangement as one unit.
 duration sets the timeline length; whole-timeline motions stretch to it, entrances (rise, lid-open, …) keep their natural length.
 Styles: light-studio, dark-studio, soft-gradient, midnight-neon, sunset, mint, product-white, transparent, glossy-dark, glossy-light. Layouts: hero, row, arc, fan, stack, grid, circle, showcase (default picked from the devices).
-Templates (see list_templates) are ready-made briefs: pass template + screens, plus any brief fields to override.
+Templates (see list_templates): pass template + screens (filled into the {{screenN}} slots in order) + variables. Brief templates also take any brief field as an override;
+scene templates (saved with save_template) replay a whole composition — keyframes, camera, look — and take only name, preset, canvas, duration, render, style, variables, locales.
+Motion templates are single movements: play them with apply_motion { clip }.
 Example: { name: 'Fitness launch', preset: '1080p', style: 'dark-studio', devices: [{ model: 'phone-modern', screen: 'screens/workout.png' }], motion: ['slow-turn', 'push-in'], duration: 5 }
 Example: { template: 'phone-trio', screens: ['a.png', 'b.png', 'c.png'], style: 'mint' }
 Next: render_preview to look at it, then adjust (update_node, set_camera, set_lights, apply_motion …) and render.
@@ -48,14 +51,16 @@ Next: render_preview to look at it, then adjust (update_node, set_camera, set_li
 | `text` | { content, position?, role?, size?, weight?, color?, font? }[] |  |  |  |
 | `variables` | object |  |  |  |
 | `locales` | object |  |  |  |
-| `motion` | "turntable" \| "slow-turn" \| "float" \| "rise" \| … (23 values) \| { preset, target?, start?, duration?, amount?, easing?, stagger? } \| ("turntable" \| "slow-turn" \| "float" \| "rise" \| … (23 values) \| { preset, target?, start?, duration?, amount?, easing?, stagger? })[] |  |  |  |
+| `motion` | "turntable" \| "slow-turn" \| "float" \| "rise" \| … (25 values) \| { preset, target?, start?, duration?, amount?, easing?, stagger? } \| ("turntable" \| "slow-turn" \| "float" \| "rise" \| … (25 values) \| { preset, target?, start?, duration?, amount?, easing?, stagger? })[] |  |  |  |
 | `render` | object |  |  | Default render settings (format, quality, supersample, transparent, time). |
 
 ### list_templates
 
 _readOnly_
 
-Ready-made scene briefs (built-in plus any JSON templates in .devicewrapper/templates/). Use with compose_scene { template, screens }.
+Every reusable composition: built-in briefs, global templates (shared by all projects) and project templates (.devicewrapper/templates/); a project template overrides a global one of the same name.
+kind 'brief' / 'scene': compose_scene { template, screens, variables }. kind 'motion': a single movement, played with apply_motion { clip, start }.
+Save new ones from a scene you like with save_template.
 
 No parameters.
 
@@ -97,8 +102,10 @@ recolorDevices: true also switches devices to the style's suggested colors. Fine
 ### apply_motion
 
 Add a named animation relative to the current pose. Device motions target all top-level devices by default (entrances are staggered), or `target`.
+Or play a saved movement: { clip: '<motion template>', start, target? } (see list_templates, kind 'motion'); it replaces only its own time window, so clips chain on one timeline.
+focus / reframe make punchy camera moves that fit any screenshot: focus { target: 'phone', point: [0.5, 0.3], amount: 0.4, start: 0.75, hold: 0.4 } rushes in to that spot of the display; reframe { start: 1.5, hold: 1 } pulls back out (to the base camera, or a shot).
 Text: target a text node ID or 'texts' (all text) with fade-in, fade-out, rise, drop-in, enter-left/right, exit-left/right.
-Presets: turntable (Full spin around the vertical axis (amount = degrees, default 360), constant speed.); slow-turn (Gentle turn from -amount to +amount degrees around Y (default 15).); float (Soft hovering up and down (amount = meters, default ~3% of device height).); rise (Rises into place from below while fading in (entrance).); drop-in (Drops into place from above with a small overshoot (entrance).); enter-left (Slides in from the left while turning to face the camera (entrance).); enter-right (Slides in from the right while turning to face the camera (entrance).); exit-left (Slides out to the left (exit, at the end of the timeline).); exit-right (Slides out to the right (exit, at the end of the timeline).); fade-in (Opacity 0 → 1.); fade-out (Opacity 1 → 0 at the end.); spin-reveal (Starts showing its back, spins to face the camera (entrance).); tilt-up (Starts lying back, tilts up to face the camera (entrance).); lid-open (Laptops: opens the lid from closed to its resting angle.); lid-close (Laptops: closes the lid (at the end).); screen-on (Screen brightness 0 → 1, like the display waking up.); push-in (Camera dollies toward its target (amount = fraction of distance, default 0.2).); pull-out (Camera dollies away from its target (amount default 0.2).); orbit (Camera arcs around its target (amount = total degrees, default 30), eased.); pan-left (Camera and target slide left (amount = fraction of distance, default 0.12).); pan-right (Camera and target slide right (amount default 0.12).); crane-up (Camera rises while keeping its target (amount = fraction of distance, default 0.25).); zoom-in (Narrows the field of view (amount = fraction, default 0.2).).
+Presets: turntable (Full spin around the vertical axis (amount = degrees, default 360), constant speed.); slow-turn (Gentle turn from -amount to +amount degrees around Y (default 15).); float (Soft hovering up and down (amount = meters, default ~3% of device height).); rise (Rises into place from below while fading in (entrance).); drop-in (Drops into place from above with a small overshoot (entrance).); enter-left (Slides in from the left while turning to face the camera (entrance).); enter-right (Slides in from the right while turning to face the camera (entrance).); exit-left (Slides out to the left (exit, at the end of the timeline).); exit-right (Slides out to the right (exit, at the end of the timeline).); fade-in (Opacity 0 → 1.); fade-out (Opacity 1 → 0 at the end.); spin-reveal (Starts showing its back, spins to face the camera (entrance).); tilt-up (Starts lying back, tilts up to face the camera (entrance).); lid-open (Laptops: opens the lid from closed to its resting angle.); lid-close (Laptops: closes the lid (at the end).); screen-on (Screen brightness 0 → 1, like the display waking up.); push-in (Camera dollies toward its target (amount = fraction of distance, default 0.2).); pull-out (Camera dollies away from its target (amount default 0.2).); orbit (Camera arcs around its target (amount = total degrees, default 30), eased.); pan-left (Camera and target slide left (amount = fraction of distance, default 0.12).); pan-right (Camera and target slide right (amount default 0.12).); crane-up (Camera rises while keeping its target (amount = fraction of distance, default 0.25).); zoom-in (Narrows the field of view (amount = fraction, default 0.2).); focus (Camera rushes in to a point on a device's screen (target = device, default the one nearest the camera's aim; point = [x, y] on the display, 0..1 from top-left, default [0.5, 0.3]; amount = fraction of the screen height in view, default 0.4; angle = [yaw, pitch] off the screen normal, default [8, 4]), then holds `hold` seconds with a slow drift. Default 0.35 s, easeInOutExpo.); reframe (Camera pulls back out: to the scene's base camera, or to an auto-framed shot when shot / padding / shift are given (framed on the devices as they are posed at that moment), then holds `hold` seconds with a slow push. Default 0.45 s, easeInOutExpo.).
 target 'all': every device moves as one unit (they are grouped under 'arrangement'); use it to turn or orbit a fan/arc/row as a whole, since without it turntable/slow-turn spin each device on its own axis.
 Timing: start/duration in seconds (defaults: whole timeline; entrances ~1.2 s at the start; exits at the end). amount scales the motion.
 Motions layer: if the property is already animated (e.g. float then rise), the device is wrapped in a group and the group is animated (stack: 'auto'; use 'replace' to overwrite).
@@ -107,7 +114,8 @@ The timeline is extended if a motion ends after it. Example: { sceneId: 'hero', 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `sceneId` | string | yes |  | Scene ID (see list_scenes). |
-| `preset` | "turntable" \| "slow-turn" \| "float" \| "rise" \| … (23 values) | yes |  |  |
+| `preset` | "turntable" \| "slow-turn" \| "float" \| "rise" \| … (25 values) |  |  | A motion preset, or use clip. |
+| `clip` | string |  |  | A saved motion template (list_templates, kind 'motion') instead of a preset. |
 | `target` | string |  |  |  |
 | `start` | number |  |  |  |
 | `duration` | number |  |  |  |
@@ -115,6 +123,13 @@ The timeline is extended if a motion ends after it. Example: { sceneId: 'hero', 
 | `easing` | string |  |  |  |
 | `stagger` | number |  |  |  |
 | `stack` | "auto" \| "replace" |  | `"auto"` |  |
+| `point` | [number, number] |  |  | focus: [x, y] on the display, 0..1 from the top-left. |
+| `angle` | [number, number] |  |  | focus: [yaw, pitch] degrees off the screen normal (default [8, 4]). |
+| `hold` | number |  |  | focus / reframe: seconds to hold after arriving, with a slow drift. |
+| `drift` | number |  |  | focus / reframe: how far the camera keeps moving during the hold (fraction of its distance). |
+| `shot` | string |  |  | reframe: auto-frame with this shot instead of returning to the base camera. |
+| `padding` | number |  |  | reframe: framing padding. |
+| `shift` | [number, number] |  |  | reframe: [x, y] subject shift in the frame. |
 
 ## Scenes
 
@@ -544,3 +559,29 @@ Cancel a queued or running render. Finished jobs are unaffected.
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `jobId` | string | yes |  |  |
+
+## Other
+
+### save_template
+
+Save a composition the user liked so it can be reused, in this project or (scope 'global') in every project.
+kind 'scene' (default): the whole scene — devices, look, camera, every keyframe. Each device screen becomes a {{screenN}} slot and each text a {{variable}} (named after the text node),
+so compose_scene { template, screens, variables } replays the same motion on another project's screenshots.
+kind 'motion': one movement — the camera, one device and the text tracks over range [start, end] — stored relative to the device and its screen size; play it with apply_motion { clip, start }.
+Before saving, show the user what will be saved and get a yes: never save without being asked to.
+Example: { sceneId: 'reel-home', name: 'punch-in-top', kind: 'motion', range: [0.75, 1.5], scope: 'global', description: 'Slams in to the top third of the screen' }
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `sceneId` | string | yes |  | Scene ID (see list_scenes). |
+| `name` | string | yes |  | Template name (letters, digits, '-', '_'); the file is <name>.json. |
+| `title` | string |  |  |  |
+| `description` | string |  |  |  |
+| `kind` | "scene" \| "motion" |  | `"scene"` |  |
+| `scope` | "project" \| "global" |  | `"project"` | project: .devicewrapper/templates in this workspace. global: shared by every workspace. |
+| `range` | [number, number] |  |  | motion: [start, end] seconds. Default: the whole timeline. |
+| `target` | string |  |  | motion: the device the movement is about. Default: the scene's only device. |
+| `includeCamera` | boolean |  | `true` | motion: include the camera (its framing is saved even when it doesn't move). |
+| `includeText` | boolean |  | `true` | motion: include text tracks (replayed on the target scene's text nodes, in order). |
+| `textVariables` | boolean |  | `true` | scene: turn each text into a {{variable}} so it can be replaced per project. |
+| `overwrite` | boolean |  | `false` |  |
